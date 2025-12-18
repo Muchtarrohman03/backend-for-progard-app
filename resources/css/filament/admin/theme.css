@@ -1,0 +1,27 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@source '../../../../app/Filament/**/*';
+@source '../../../../resources/views/filament/**/*';
+
+/* --- Custom Logo Styling --- */
+
+/* Logo di navbar (saat sudah login) */
+.fi-logo {
+    height: 120px;
+    /* ubah sesuai kebutuhan */
+    width: 120px;
+}
+
+/* Logo kecil (saat sidebar collapse) */
+.fi-logo-small {
+    height: 50px;
+    width: 200px;
+}
+
+/* Logo di halaman login */
+.fi-login-logo img {
+    height: 80px;
+    /* ubah sesuai proporsi logo */
+    width: 120px;
+    margin: 0 auto;
+}

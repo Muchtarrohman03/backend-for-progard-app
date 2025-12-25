@@ -67,6 +67,12 @@ class UserResource extends Resource
                         'Sektor 5' => 'Sektor 5',
                     ])
                     ->required(),
+                Select::make('gender')
+                    ->options([
+                        'male' => 'Male',
+                        'female' => 'Female',
+                    ])
+                    ->required(),
             ]);
     }
 
@@ -88,7 +94,10 @@ class UserResource extends Resource
                     ->placeholder('-'),
                 TextEntry::make('roles.name')
                     ->label('Roles'),
-                TextEntry::make('division'),
+                TextEntry::make('division')
+                    ->label('Division'),
+                TextEntry::make('gender')
+                    ->label('Gender'),
 
             ]);
     }
@@ -116,6 +125,9 @@ class UserResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->wrap(),
                 TextColumn::make('division')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('gender')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])

@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use Override;
 use App\Models\Overtime;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
@@ -90,17 +89,7 @@ class OvertimeController extends Controller
             'data' => $overtime,
         ]);
     }
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         //
@@ -108,17 +97,17 @@ class OvertimeController extends Controller
             'start' => 'required|date_format:H:i',
             'end' => 'required|date_format:H:i|after:start',
             'category_id' => 'required|exists:job_categories,id',
-            'status' => 'required|in:pending,approved,rejected',
             'description' => 'nullable|string',
-            'image' => 'nullable|image|max:2048',
+            'before' => 'required|image|max:2048',
+            'after' => 'required|image|max:2048',
         ]);
 
         $user = Auth::user();
 
-        $path = null;
-        if ($request->hasFile('image')) {
-            // Simpan di storage/app/private/overtime
-            $path = $request->file('image')->store('overtime', 'public');
+        $beforePath = $request->file('before')->store('overtime/before', 'public');
+        $afterPath = null;
+        if ($request->hasFile('after')) {
+            $afterPath = $request->file('after')->store('overtime/after', 'public');
         }
 
         $overtime = Overtime::create([
@@ -127,9 +116,9 @@ class OvertimeController extends Controller
             'submitted_at' => now(),
             'category_id' => $validated['category_id'],
             'employee_id' => $user->id,
-            'status' => $validated['status'] ?? 'pending',
             'description' => $validated['description'] ?? null,
-            'image_path' => $path,
+            'before' => $beforePath,
+            'after' => $afterPath,
         ]);
 
         return response()->json(
@@ -142,26 +131,102 @@ class OvertimeController extends Controller
         );
     }
 
-    /**
-     * Display the specified resource.
-     */
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
+    //Mengambil data Lembur milik user berdasarkan tanggal
+    public function getOvertimesByDate(Request $request)
     {
-        //
+        $request->validate([
+            'date' => 'required|date',
+        ]);
+
+        $user = Auth::user();
+        $date = $request->input('date');
+
+        $overtimes = Overtime::with(['employee', 'category'])
+            ->where('employee_id', $user->id)
+            ->whereDate('submitted_at', $date)
+            ->get();
+
+        $overtimes->transform(function ($item) {
+            $item->before_url = $item->before
+                ? url(Storage::url($item->before))
+                : null;
+
+            $item->after_url = $item->after
+                ? url(Storage::url($item->after))
+                : null;
+
+            return $item;
+        });
+
+        return response()->json([
+            'response_code' => 200,
+            'status' => 'success',
+            'message' => $overtimes->isEmpty()
+                ? 'Tidak Menemukan Data Lembur'
+                : 'Berhasil Menemukan Data Lembur',
+            'data' => $overtimes,
+        ]);
     }
-
     /**
-     * Update the specified resource in storage.
+     * Mendapatkan data lembur berdasarkan divisi utuk supervisor
      */
-    public function update(Request $request, string $id)
+    public function spvSelectOvertime()
     {
-        //
-        $overtime = Overtime::find($id);
+        $authUser = Auth::user();
 
+        $todayStart = now()->startOfDay();
+        $todayEnd   = now()->endOfDay();
+
+        $overtimes = Overtime::query()
+            ->select([
+                'id',
+                'start',
+                'end',
+                'employee_id',
+                'category_id',
+                'status',
+                'before',
+                'after',
+                'submitted_at',
+                'created_at'
+            ])
+            ->with([
+                'employee:id,name,division',
+                'category:id,name',
+            ])
+            ->whereBetween('submitted_at', [$todayStart, $todayEnd])
+            ->whereHas('employee', function ($query) use ($authUser) {
+                $query->where('division', $authUser->division)
+                    ->role('gardener');
+            })
+            ->latest('submitted_at')
+            ->get();
+        $overtimes->transform(function ($item) {
+            $item->before_url = $item->before
+                ? url(Storage::url($item->before))
+                : null;
+
+            $item->after_url = $item->after
+                ? url(Storage::url($item->after))
+                : null;
+
+            return $item;
+        });
+        return response()->json([
+            'response_code' => 200,
+            'status'        => 'success',
+            'message'       => $overtimes->isEmpty()
+                ? 'Data Lembur Hari Ini Tidak Ditemukan'
+                : 'Data Lembur Hari Ini Ditemukan',
+            'data'          => $overtimes,
+        ]);
+    }
+    /**
+     * Update status lembur
+     */
+    public function spvAprovalOvertime(Request $request, string $id)
+    {
+        $overtime = Overtime::find($id);
         if (!$overtime) {
             return response()->json([
                 'response_code' => 404,
@@ -171,36 +236,19 @@ class OvertimeController extends Controller
         }
 
         $validated = $request->validate([
-            'start' => 'sometimes|required|date_format:H:i',
-            'end' => 'sometimes|required|date_format:H:i|after:start',
-            'category_id' => 'sometimes|required|exists:job_categories,id',
-            'status' => 'sometimes|required|in:pending,approved,rejected',
-            'description' => 'nullable|string',
-            'image' => 'nullable|image|max:2048',
+            'status' => 'required|in:approved,rejected',
         ]);
-        if ($request->hasFile('image')) {
-            // Simpan di storage/app/private/overtime
-            $path = $request->file('image')->store('overtime', 'public');
-            $overtime->image_path = $path;
-        }
 
-        $overtime->fill([
-            'start' => $validated['start'] ?? $overtime->start,
-            'end' => $validated['end'] ?? $overtime->end,
-            'category_id' => $validated['category_id'] ?? $overtime->category_id,
-            'status' => $validated['status'] ?? $overtime->status,
-            'description' => $validated['description'] ?? $overtime->description,
-        ]);
+        $overtime->status = $validated['status'];
         $overtime->save();
 
         return response()->json([
             'response_code' => 200,
             'status' => 'success',
-            'message' => 'Overtime updated successfully',
+            'message' => 'Overtime status updated successfully',
             'data' => $overtime,
         ]);
     }
-
     /**
      * Remove the specified resource from storage.
      */

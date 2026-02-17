@@ -10,6 +10,7 @@ use Filament\Schemas\Schema;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Resource;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ExportAction;
 use Filament\Support\Icons\Heroicon;
@@ -31,7 +32,9 @@ class AbsenceResource extends Resource
 {
     protected static ?string $model = Absence::class;
 
-    protected static string | UnitEnum | null $navigationGroup = 'Submission Management';
+    protected static string | UnitEnum | null $navigationGroup = 'Manajemen Pengajuan';
+
+    protected static ?string $navigationLabel = 'Pengajuan Izin';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDays;
 
@@ -104,26 +107,33 @@ class AbsenceResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('reason')
+                    ->label('Alasan')
                     ->badge()
                     ->toggleable(isToggledHiddenByDefault: false),
                 TextColumn::make('start')
+                    ->label('Mulai')
                     ->date()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: false),
                 TextColumn::make('end')
+                    ->label('Selesai')
                     ->date()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: false),
                 TextColumn::make('employee.name')
-                    ->label('Employee')
+                    ->label('Karyawan')
                     ->sortable()
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: false),
+                TextColumn::make('description')
+                    ->label('Keterangan')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 ImageColumn::make('image_url')
-                    ->label('Image')
+                    ->label('Bukti')
                     ->disk('public')
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('status')
+                    ->label('Status')
                     ->badge()
                     ->icons(
                         [
@@ -151,9 +161,11 @@ class AbsenceResource extends Resource
                 //
             ])
             ->recordActions([
-                ViewAction::make(),
-                EditAction::make(),
-                DeleteAction::make(),
+                ActionGroup::make([
+                    ViewAction::make(),
+                    EditAction::make(),
+                    DeleteAction::make(),
+                ]),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
@@ -162,6 +174,8 @@ class AbsenceResource extends Resource
             ])
             ->headerActions([
                 ExportAction::make()
+                    ->icon(Heroicon::ArrowDownTray)
+                    ->label('Unduh')
                     ->exporter(AbsenceExporter::class)
                     ->color('primary')
                     ->maxRows(50000)

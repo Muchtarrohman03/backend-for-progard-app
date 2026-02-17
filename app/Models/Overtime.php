@@ -6,12 +6,21 @@ use Illuminate\Database\Eloquent\Model;
 
 class Overtime extends Model
 {
-    protected $appends = ['image_url'];
-
-    public function getImageUrlAttribute()
+    protected $appends = [
+        'before_url',
+        'after_url',
+    ];
+    public function getBeforeUrlAttribute()
     {
-        return $this->image_path
-            ? asset('storage/' . $this->image_path)
+        return $this->before
+            ? asset('storage/' . $this->before)
+            : null;
+    }
+
+    public function getAfterUrlAttribute()
+    {
+        return $this->after
+            ? asset('storage/' . $this->after)
             : null;
     }
     protected $fillable = [
@@ -22,7 +31,8 @@ class Overtime extends Model
         'status',
         'submitted_at',
         'description',
-        'image_path',
+        'before',
+        'after',
     ];
 
     public function category()
@@ -32,13 +42,5 @@ class Overtime extends Model
     public function employee()
     {
         return $this->belongsTo(User::class, 'employee_id');
-    }
-    public function getImageFullPathAttribute()
-    {
-        if (! $this->image_path) {
-            return null;
-        }
-
-        return storage_path('app/public/' . $this->image_path);
     }
 }

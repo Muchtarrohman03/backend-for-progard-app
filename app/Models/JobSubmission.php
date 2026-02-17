@@ -6,20 +6,33 @@ use Illuminate\Database\Eloquent\Model;
 
 class JobSubmission extends Model
 {
-    protected $appends = ['image_url'];
 
-    public function getImageUrlAttribute()
+    protected $appends = [
+        'before_url',
+        'after_url',
+    ];
+    public function getBeforeUrlAttribute()
     {
-        return $this->image_path
-            ? asset('storage/' . $this->image_path)
+        return $this->before
+            ? asset('storage/' . $this->before)
             : null;
     }
+
+    public function getAfterUrlAttribute()
+    {
+        return $this->after
+            ? asset('storage/' . $this->after)
+            : null;
+    }
+
+
     protected $fillable = [
         'category_id',
         'employee_id',
         'submitted_at',
         'status',
-        'image_path',
+        'before',
+        'after',
     ];
 
     public function employee()

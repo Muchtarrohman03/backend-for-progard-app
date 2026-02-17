@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Users;
 
+use Dom\Text;
 use UnitEnum;
 use BackedEnum;
 use App\Models\User;
@@ -10,6 +11,7 @@ use Filament\Schemas\Schema;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Resource;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Support\Icons\Heroicon;
 use Filament\Actions\BulkActionGroup;
@@ -17,17 +19,16 @@ use Filament\Forms\Components\Select;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Infolists\Components\TextEntry;
 use App\Filament\Resources\Users\Pages\ManageUsers;
-use Dom\Text;
-use Filament\Forms\Components\CheckboxList;
 
 class UserResource extends Resource
 {
     protected static ?string $model = User::class;
 
-    protected static string | UnitEnum | null $navigationGroup = 'User Management';
-
+    protected static string | UnitEnum | null $navigationGroup = 'Manajemen Pengguna';
+    protected static ?string $navigationLabel = 'Kelola Pengguna';
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUsers;
 
     public static function form(Schema $schema): Schema
@@ -83,20 +84,13 @@ class UserResource extends Resource
                 TextEntry::make('name'),
                 TextEntry::make('email')
                     ->label('Email address'),
-                TextEntry::make('email_verified_at')
-                    ->dateTime()
-                    ->placeholder('-'),
-                TextEntry::make('created_at')
-                    ->dateTime()
-                    ->placeholder('-'),
-                TextEntry::make('updated_at')
-                    ->dateTime()
-                    ->placeholder('-'),
                 TextEntry::make('roles.name')
-                    ->label('Roles'),
+                    ->label('Peran'),
                 TextEntry::make('division')
+                    ->label('Divisi')
                     ->label('Division'),
                 TextEntry::make('gender')
+                    ->label('Jenis Kelamin')
                     ->label('Gender'),
 
             ]);
@@ -106,35 +100,35 @@ class UserResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('name')->searchable(),
+                TextColumn::make('id')->label('ID'),
+                TextColumn::make('name')
+                    ->label('Nama')
+                    ->searchable(),
                 TextColumn::make('email')
-                    ->label('Email address')
+                    ->label('Alamat Email')
                     ->sortable()
                     ->searchable(),
-                TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('roles.name')
+                    ->label('Peran')
                     ->label('Roles')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->wrap(),
                 TextColumn::make('division')
+                    ->label('Divisi')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('gender')
+                    ->label('Jenis Kelamin')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->recordActions([
-                ViewAction::make(),
-                EditAction::make(),
-                DeleteAction::make(),
+                ActionGroup::make([
+                    ViewAction::make(),
+                    EditAction::make(),
+                    DeleteAction::make(),
+                ]),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

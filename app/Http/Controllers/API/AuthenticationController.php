@@ -3,12 +3,16 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Absence;
+use App\Models\JobSubmission;
+use App\Models\Overtime;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use App\Models\User;
+use PHPUnit\Util\PHP\Job;
 use Spatie\Permission\Models\Role;
 
 class AuthenticationController extends Controller
@@ -131,6 +135,7 @@ class AuthenticationController extends Controller
                     "email" => $user->email,
                     "division" => $user->division, // langsung ambil dari kolom users
                     "role" => $user->getRoleNames(), // role list dari spatie
+                    "gender" => $user->gender,
                 ]
             ]);
         } catch (\Exception $e) {
@@ -140,6 +145,82 @@ class AuthenticationController extends Controller
                 'response_code' => 500,
                 'status'        => 'error',
                 'message'       => 'Failed to fetch user profile',
+            ], 500);
+        }
+    }
+
+    //get statoverview for user
+    public function statOverview(Request $request)
+    {
+        try {
+            $user = $request->user();
+            $jobSubmissionStats = JobSubmission::where('employee_id', $user->id)
+                ->selectRaw('status, COUNT(*) as total')
+                ->groupBy('status')
+                ->pluck('total', 'status');
+
+            $absenceStats = Absence::where('employee_id', $user->id)
+                ->selectRaw('status, COUNT(*) as total')
+                ->groupBy('status')
+                ->pluck('total', 'status');
+
+            $overtimeStats = Overtime::where('employee_id', $user->id)
+                ->selectRaw('status, COUNT(*) as total')
+                ->groupBy('status')
+                ->pluck('total', 'status');
+
+            $detail = [
+                'job_submissions' => [
+                    'pending'  => $jobSubmissionStats['pending'] ?? 0,
+                    'approved' => $jobSubmissionStats['approved'] ?? 0,
+                    'rejected' => $jobSubmissionStats['rejected'] ?? 0,
+                ],
+                'absences' => [
+                    'pending'  => $absenceStats['pending'] ?? 0,
+                    'approved' => $absenceStats['approved'] ?? 0,
+                    'rejected' => $absenceStats['rejected'] ?? 0,
+                ],
+                'overtime' => [
+                    'pending'  => $overtimeStats['pending'] ?? 0,
+                    'approved' => $overtimeStats['approved'] ?? 0,
+                    'rejected' => $overtimeStats['rejected'] ?? 0,
+                ],
+            ];
+
+
+
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Pengambilan statistik user berhasil',
+                'user' => $user->name,
+                'data' => [
+                    'job_submissions' => [
+                        'total'    => $jobSubmissionStats->sum(),
+                        'pending'  => $jobSubmissionStats['pending'] ?? 0,
+                        'approved' => $jobSubmissionStats['approved'] ?? 0,
+                        'rejected' => $jobSubmissionStats['rejected'] ?? 0,
+                    ],
+                    'absences' => [
+                        'total'    => $absenceStats->sum(),
+                        'pending'  => $absenceStats['pending'] ?? 0,
+                        'approved' => $absenceStats['approved'] ?? 0,
+                        'rejected' => $absenceStats['rejected'] ?? 0,
+                    ],
+                    'overtime' => [
+                        'total'    => $overtimeStats->sum(),
+                        'pending'  => $overtimeStats['pending'] ?? 0,
+                        'approved' => $overtimeStats['approved'] ?? 0,
+                        'rejected' => $overtimeStats['rejected'] ?? 0,
+                    ],
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('User Statistics Error: ' . $e->getMessage());
+
+            return response()->json([
+                'status'        => 'error',
+                'message'       => 'Gagal mengambil statistik user',
             ], 500);
         }
     }

@@ -2,28 +2,31 @@
 
 namespace App\Filament\Resources\JobCategories;
 
-use App\Filament\Resources\JobCategories\Pages\ManageJobCategories;
-use App\Models\JobCategory;
+use UnitEnum;
 use BackedEnum;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
+use Filament\Tables\Table;
+use App\Models\JobCategory;
+use Filament\Schemas\Schema;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
-use Filament\Schemas\Schema;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\DeleteAction;
 use Filament\Support\Icons\Heroicon;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Forms\Components\Textarea;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Table;
-use UnitEnum;
+use Filament\Forms\Components\TextInput;
+use Filament\Infolists\Components\TextEntry;
+use App\Filament\Resources\JobCategories\Pages\ManageJobCategories;
 
 class JobCategoryResource extends Resource
 {
     protected static ?string $model = JobCategory::class;
-    protected static string | UnitEnum | null $navigationGroup = 'Category';
+
+    protected static string | UnitEnum | null $navigationGroup = 'Manajemen Kategori';
+    protected static ?string $navigationLabel = 'Kategori Pekerjaan';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentList;
 
@@ -32,10 +35,12 @@ class JobCategoryResource extends Resource
         return $schema
             ->components([
                 TextInput::make('name')
+                    ->label('Kategori')
                     ->required()
                     ->minLength(3)
                     ->maxLength(125),
                 Textarea::make('description')
+                    ->label('Kategori')
                     ->columnSpanFull()
                     ->minLength(10)
                     ->maxLength(125),
@@ -64,8 +69,10 @@ class JobCategoryResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('name')
+                    ->label('Kategori')
                     ->searchable(),
                 TextColumn::make('description')
+                    ->label('Deskripsi')
                     ->searchable(),
                 TextColumn::make('created_at')
                     ->dateTime()
@@ -80,9 +87,11 @@ class JobCategoryResource extends Resource
                 //
             ])
             ->recordActions([
-                ViewAction::make(),
-                EditAction::make(),
-                DeleteAction::make(),
+                ActionGroup::make([
+                    ViewAction::make(),
+                    EditAction::make(),
+                    DeleteAction::make(),
+                ]),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

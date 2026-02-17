@@ -12,6 +12,7 @@ use Filament\Schemas\Schema;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Resource;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ExportAction;
 use Filament\Support\Icons\Heroicon;
@@ -29,12 +30,15 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Infolists\Components\ImageEntry;
 use App\Filament\Resources\Overtimes\Pages\ManageOvertimes;
+use PhpParser\Node\Stmt\Label;
 
 class OvertimeResource extends Resource
 {
     protected static ?string $model = Overtime::class;
 
-    protected static string | UnitEnum | null $navigationGroup = 'Submission Management';
+    protected static string | UnitEnum | null $navigationGroup = 'Manajemen Pengajuan';
+
+    protected static ?string $navigationLabel = 'Pengajuan Lembur';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClock;
 
@@ -100,31 +104,38 @@ class OvertimeResource extends Resource
         return $schema
             ->components([
                 TextEntry::make('start')
+                    ->label('Mulai')
                     ->time(),
                 TextEntry::make('end')
+                    ->label('Selesai')
                     ->time(),
-                TextEntry::make('category_id')
-                    ->numeric(),
-                TextEntry::make('employee_id')
-                    ->numeric(),
+                TextEntry::make('category.name')
+                    ->label('Kategori'),
+                TextEntry::make('employee.name')
+                    ->label('Karyawan'),
+
                 TextEntry::make('status')
+                    ->label('Status')
                     ->badge(),
-                TextEntry::make('description')
-                    ->placeholder('-')
-                    ->columnSpanFull(),
                 TextEntry::make('submitted_at')
+                    ->label('Dibuat Pada')
                     ->dateTime(),
-                ImageEntry::make('image_url')
+                ImageEntry::make('before_url')
+                    ->label('Sebelum')
                     ->disk('public')
                     ->imageWidth(200)
                     ->imageHeight(300)
                     ->placeholder('-'),
-                TextEntry::make('created_at')
-                    ->dateTime()
+                ImageEntry::make('after_url')
+                    ->label('Sesudah')
+                    ->disk('public')
+                    ->imageWidth(200)
+                    ->imageHeight(300)
                     ->placeholder('-'),
-                TextEntry::make('updated_at')
-                    ->dateTime()
-                    ->placeholder('-'),
+                TextEntry::make('description')
+                    ->label('Deskripsi')
+                    ->placeholder('-')
+                    ->columnSpanFull(),
             ]);
     }
 
@@ -133,25 +144,28 @@ class OvertimeResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('start')
+                    ->label('Mulai')
                     ->time()
                     ->sortable()
                     ->searchable(),
                 TextColumn::make('end')
+                    ->label('Selesai')
                     ->time()
                     ->searchable()
                     ->sortable(),
                 // Nama kategori dari relasi
                 TextColumn::make('category.name')
-                    ->label('Category')
+                    ->label('Kategori')
                     ->sortable()
                     ->searchable(),
 
                 // Nama karyawan dari relasi
                 TextColumn::make('employee.name')
-                    ->label('Employee')
+                    ->label('Karyawan')
                     ->sortable()
                     ->searchable(),
                 TextColumn::make('status')
+                    ->label('Status')
                     ->badge()
                     ->icons(
                         [
@@ -166,27 +180,27 @@ class OvertimeResource extends Resource
                         'danger' => 'rejected',
                     ]),
                 TextColumn::make('submitted_at')
+                    ->label('Dibuat')
                     ->dateTime()
                     ->sortable(),
-                ImageColumn::make('image_url')
-                    ->label('Image')
-                    ->disk('public'),
-                TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                ImageColumn::make('before_url')
+                    ->disk('public')
+                    ->label('Sebelum')
+                    ->toggleable(isToggledHiddenByDefault: false),
+                ImageColumn::make('after_url')
+                    ->disk('public')
+                    ->label('Sesudah')
+                    ->toggleable(isToggledHiddenByDefault: false),
             ])
             ->filters([
                 //
             ])
             ->recordActions([
-                ViewAction::make(),
-                EditAction::make(),
-                DeleteAction::make(),
+                ActionGroup::make([
+                    ViewAction::make(),
+                    EditAction::make(),
+                    DeleteAction::make(),
+                ]),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
@@ -195,8 +209,9 @@ class OvertimeResource extends Resource
             ])
             ->headerActions([
                 ExportAction::make()
+                    ->icon(Heroicon::ArrowDownTray)
+                    ->label('Unduh')
                     ->exporter(OvertimeExporter::class)
-                    ->label('Export Overtimes')
                     ->color('primary')
                     ->chunkSize(100),
             ]);

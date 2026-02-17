@@ -35,31 +35,6 @@ class AbsenceController extends Controller
         ]);
     }
 
-    public function myabsences()
-    {
-        $user = Auth::user();
-
-        $absences = Absence::with('employee')
-            ->where('employee_id', $user->id)
-            ->get();
-
-        $absences->transform(function ($item) {
-            if ($item->evidence) {
-                $item->image_url = URL::to(Storage::url($item->evidence));
-            } else {
-                $item->image_url = null;
-            }
-            return $item;
-        });
-
-        return response()->json([
-            'response_code' => 200,
-            'status' => 'success',
-            'message' => 'List of my absences retrieved successfully',
-            'data' => $absences,
-        ]);
-    }
-
     /**
      * Show the form for creating a new resource.
      */
@@ -79,9 +54,7 @@ class AbsenceController extends Controller
             'end' => 'required|date|after_or_equal:start',
             'reason' => 'required|in:sakit,darurat,lainnya',
             'evidence' => 'required|image|max:2048',
-            'description' => 'nullable|string',
-            'status' => 'required|in:pending,approved,rejected',
-
+            'description' => 'required|string',
         ]);
         $user = Auth::user();
 
@@ -97,7 +70,7 @@ class AbsenceController extends Controller
             'description' => $validated['description'] ?? null,
             'reason' => $validated['reason'],
             'evidence' => $path,
-            'status' => $validated['status'] ?? 'pending',
+            'status' => 'pending',
         ]);
 
         return response()->json([
@@ -141,9 +114,9 @@ class AbsenceController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * Update the status of the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function spvApprovalAbsence(Request $request, string $id)
     {
         $absence = Absence::find($id);
 
@@ -156,30 +129,19 @@ class AbsenceController extends Controller
         }
 
         $validated = $request->validate([
-            'start' => 'sometimes|date',
-            'end' => 'sometimes|date|after_or_equal:start',
-            'reason' => 'sometimes|in:sakit,darurat,lainnya',
-            'evidence' => 'sometimes|nullable|image|max:2048',
-            'description' => 'nullable|string',
             'status' => 'sometimes|in:pending,approved,rejected',
         ]);
 
-        // Hapus file lama jika ada file baru
-        if ($request->hasFile('evidence')) {
-            if ($absence->evidence && Storage::exists($absence->evidence)) {
-                Storage::delete($absence->evidence);
-            }
-
-            // Simpan file baru
-            $absence->evidence = $request->file('evidence')->store('absences', 'public');
+        if ($absence->status !== 'pending') {
+            return response()->json([
+                'response_code' => 400,
+                'status' => 'error',
+                'message' => 'Absence status already processed and cannot be updated',
+            ], 400);
         }
 
-        // Update data lain
-        $absence->fill([
-            'start' => $validated['start'] ?? $absence->start,
-            'end' => $validated['end'] ?? $absence->end,
-            'reason' => $validated['reason'] ?? $absence->reason,
-            'description' => $validated['description'] ?? $absence->description,
+        // Update hanya status
+        $absence->update([
             'status' => $validated['status'] ?? $absence->status,
         ]);
 
@@ -188,9 +150,54 @@ class AbsenceController extends Controller
         return response()->json([
             'response_code' => 200,
             'status' => 'success',
-            'message' => 'Absence updated successfully',
-            'data' => $absence,
+            'message' => 'Absence status updated successfully',
+            'data' => $absence->fresh(),
         ], 200);
+    }
+    /**
+     * Mendapatkan data izin berdasarkan divisi dan tanggal terbaru untuk role supervisor
+     */
+    public function spvSelectAbsences(Request $request)
+    {
+        $user = Auth::user();
+        $todayStart = now()->startOfDay();
+        $todayEnd   = now()->endOfDay();
+
+        $absences = Absence::query()->select([
+            'id',
+            'start',
+            'end',
+            'reason',
+            'description',
+            'evidence',
+            'status',
+            'submitted_at',
+            'created_at',
+        ])->with('employee:id,name,division')
+            ->whereHas('employee', function ($query) use ($user) {
+                $query->where('division', $user->division)->role('gardener');
+            })
+            ->whereBetween('created_at', [$todayStart, $todayEnd])
+            ->latest('submitted_at')
+            ->get();
+
+        $absences->transform(function ($item) {
+            if ($item->evidence) {
+                $item->image_url = URL::to(Storage::url($item->evidence));
+            } else {
+                $item->image_url = null;
+            }
+            return $item;
+        });
+
+        return response()->json([
+            'response_code' => 200,
+            'status' => 'success',
+            'message' => $absences->isEmpty()
+                ? 'Tidak Menemukan Data Absensi'
+                : 'Berhasil Menemukan Data Absensi',
+            'data' => $absences,
+        ]);
     }
 
     /**
@@ -215,5 +222,38 @@ class AbsenceController extends Controller
             'status' => 'success',
             'message' => 'Absence deleted successfully',
         ], 200);
+    }
+
+    public function getMyAbsencesByDate(Request $request)
+    {
+        $request->validate([
+            'date' => 'required|date',
+        ]);
+
+        $user = Auth::user();
+        $date = $request->input('date');
+
+        $absences = Absence::with('employee')
+            ->where('employee_id', $user->id)
+            ->whereDate('created_at', $date)
+            ->get();
+
+        $absences->transform(function ($item) {
+            if ($item->evidence) {
+                $item->image_url = URL::to(Storage::url($item->evidence));
+            } else {
+                $item->image_url = null;
+            }
+            return $item;
+        });
+
+        return response()->json([
+            'response_code' => 200,
+            'status' => 'success',
+            'message' => $absences->isEmpty()
+                ? 'Tidak Menemukan Data Absensi'
+                : 'Berhasil Menemukan Data Absensi',
+            'data' => $absences,
+        ]);
     }
 }

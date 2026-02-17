@@ -32,6 +32,9 @@ class ApiRoleSeeder extends Seeder
             'api.view.my_submissions',
             'api.view.my_absences',
             'api.view.my_overtimes',
+
+            //job categories
+            'api.view.job_categories',
         ];
 
         foreach ($permissions as $perm) {
@@ -49,15 +52,10 @@ class ApiRoleSeeder extends Seeder
 
         // Gardener permissions
         $gardener->syncPermissions([
-            'api.view.job_submission',
             'api.create.job_submission',
-
-            'api.view.absence',
+            'api.view.job_categories',
             'api.create.absence',
-
-            'api.view.overtime',
             'api.create.overtime',
-
             'api.view.my_submissions',
             'api.view.my_absences',
             'api.view.my_overtimes',
@@ -67,6 +65,7 @@ class ApiRoleSeeder extends Seeder
         $supervisor->syncPermissions([
             'api.view.job_submission',
             'api.update.job_submission',
+            'api.view.job_categories',
 
             'api.view.absence',
             'api.update.absence',
@@ -83,6 +82,7 @@ class ApiRoleSeeder extends Seeder
         $staff->syncPermissions([
             'api.view.job_submission',
             'api.create.job_submission',
+            'api.view.job_categories',
 
             'api.view.absence',
             'api.create.absence',

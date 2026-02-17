@@ -10,129 +10,85 @@ class ShieldSeeder extends Seeder
 {
     public function run(): void
     {
+        // Reset cached permissions
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
         /*
         |--------------------------------------------------------------------------
         | ADMIN ROLE CONFIG
         |--------------------------------------------------------------------------
-        |
-        | Admin: CRUD untuk JobCategory, JobSubmission, Absence, Overtime.
-        |        Tidak boleh akses User.
+        | Admin:
+        | - CRUD Absence, JobCategory, JobSubmission, Overtime
+        | - TIDAK boleh akses User
         |
         */
 
         $adminPermissions = [
-            // Absence
+
+            // ================== Absence ==================
             "ViewAny:Absence",
             "View:Absence",
             "Create:Absence",
             "Update:Absence",
             "Delete:Absence",
             "Restore:Absence",
+            "RestoreAny:Absence",
             "ForceDelete:Absence",
             "ForceDeleteAny:Absence",
-            "RestoreAny:Absence",
             "Replicate:Absence",
             "Reorder:Absence",
 
-            // JobCategory
+            // ================== JobCategory ==================
             "ViewAny:JobCategory",
             "View:JobCategory",
             "Create:JobCategory",
             "Update:JobCategory",
             "Delete:JobCategory",
             "Restore:JobCategory",
+            "RestoreAny:JobCategory",
             "ForceDelete:JobCategory",
             "ForceDeleteAny:JobCategory",
-            "RestoreAny:JobCategory",
             "Replicate:JobCategory",
             "Reorder:JobCategory",
 
-            // JobSubmission
+            // ================== JobSubmission ==================
             "ViewAny:JobSubmission",
             "View:JobSubmission",
             "Create:JobSubmission",
             "Update:JobSubmission",
             "Delete:JobSubmission",
             "Restore:JobSubmission",
+            "RestoreAny:JobSubmission",
             "ForceDelete:JobSubmission",
             "ForceDeleteAny:JobSubmission",
-            "RestoreAny:JobSubmission",
             "Replicate:JobSubmission",
             "Reorder:JobSubmission",
 
-            // Overtime
+            // ================== Overtime ==================
             "ViewAny:Overtime",
             "View:Overtime",
             "Create:Overtime",
             "Update:Overtime",
             "Delete:Overtime",
             "Restore:Overtime",
+            "RestoreAny:Overtime",
             "ForceDelete:Overtime",
             "ForceDeleteAny:Overtime",
-            "RestoreAny:Overtime",
             "Replicate:Overtime",
             "Reorder:Overtime",
 
-            // Dashboard Widgets
+            // ================== Dashboard Widgets ==================
             "View:StatsOverview",
             "View:WidgetAbsenceChart",
             "View:WidgetJobSubmissionsChart",
             "View:WidgetOvertimeChart",
         ];
-
 
         /*
         |--------------------------------------------------------------------------
-        | MANAGER ROLE CONFIG
+        | ROLES DEFINITION
         |--------------------------------------------------------------------------
-        |
-        | Manager:
-        | - VIEW ONLY untuk Absence, JobCategory, JobSubmission, Overtime
-        | - CRUD untuk User
-        |
         */
-
-        $managerPermissions = [
-
-            // ==== VIEW-ONLY of 4 resources ====
-            // Absence
-            "ViewAny:Absence",
-            "View:Absence",
-
-            // JobCategory
-            "ViewAny:JobCategory",
-            "View:JobCategory",
-
-            // JobSubmission
-            "ViewAny:JobSubmission",
-            "View:JobSubmission",
-
-            // Overtime
-            "ViewAny:Overtime",
-            "View:Overtime",
-
-            // Dashboard Widgets
-            "View:StatsOverview",
-            "View:WidgetAbsenceChart",
-            "View:WidgetJobSubmissionsChart",
-            "View:WidgetOvertimeChart",
-
-            // ==== FULL CRUD USER ====
-            "ViewAny:User",
-            "View:User",
-            "Create:User",
-            "Update:User",
-            "Delete:User",
-            "Restore:User",
-            "ForceDelete:User",
-            "ForceDeleteAny:User",
-            "RestoreAny:User",
-            "Replicate:User",
-            "Reorder:User",
-        ];
-
 
         $rolesWithPermissions = json_encode([
             [
@@ -141,19 +97,19 @@ class ShieldSeeder extends Seeder
                 'permissions' => $adminPermissions,
             ],
             [
-                'name' => 'manager',
+                'name' => 'superadmin',
                 'guard_name' => 'web',
-                'permissions' => $managerPermissions,
-            ]
+                'permissions' => [], // FULL ACCESS via Gate::before()
+            ],
         ]);
 
-        // no direct permissions
+        // No direct permissions
         $directPermissions = '[]';
 
         static::makeRolesWithPermissions($rolesWithPermissions);
         static::makeDirectPermissions($directPermissions);
 
-        $this->command->info('Shield Seeder for admin + manager completed.');
+        $this->command->info('Shield Seeder for admin & superadmin completed.');
     }
 
     protected static function makeRolesWithPermissions(string $rolesWithPermissions): void
@@ -168,7 +124,7 @@ class ShieldSeeder extends Seeder
                     'guard_name' => $rolePlusPermission['guard_name'],
                 ]);
 
-                if (! blank($rolePlusPermission['permissions'])) {
+                if (! empty($rolePlusPermission['permissions'])) {
                     $permissionModels = collect($rolePlusPermission['permissions'])
                         ->map(fn($permission) => $permissionModel::firstOrCreate([
                             'name' => $permission,
@@ -182,7 +138,7 @@ class ShieldSeeder extends Seeder
         }
     }
 
-    public static function makeDirectPermissions(string $directPermissions): void
+    protected static function makeDirectPermissions(string $directPermissions): void
     {
         if (! blank($permissions = json_decode($directPermissions, true))) {
             $permissionModel = Utils::getPermissionModel();

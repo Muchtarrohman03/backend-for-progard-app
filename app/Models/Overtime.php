@@ -33,7 +33,25 @@ class Overtime extends Model
         'description',
         'before',
         'after',
+        'approved_by',
     ];
+
+    protected static function booted(): void
+    {
+        static::updated(function (Overtime $overtime) {
+            if ($overtime->wasChanged('status')) {
+                \App\Events\OvertimeStatusUpdated::dispatch($overtime);
+            }
+        });
+        static::created(function (Overtime $overtime) {
+            \App\Events\OvertimeCreated::dispatch($overtime);
+        });
+    }
+
+    public function approver()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
 
     public function category()
     {

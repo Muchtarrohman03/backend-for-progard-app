@@ -2,258 +2,167 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\Absence;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\URL;
 use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
+use App\Services\AbsenceService;
+use App\Http\Requests\Absence\AbsenceStoreRequest;
+use App\Http\Requests\Absence\AbsenceUpdateStatusRequest;
+use App\Http\Requests\Absence\AbsenceFilterByDateRequest;
+use App\Http\Requests\Absence\AbsenceFilterByDateAndDivisionRequest;
+use Illuminate\Http\JsonResponse;
 
 class AbsenceController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
-    {
-        //
-        $absences = Absence::with('employee')->get();
+    public function __construct(
+        private readonly AbsenceService $service
+    ) {}
 
-        $absences->transform(function ($item) {
-            if ($item->evidence) {
-                $item->image_url = URL::to(Storage::url($item->evidence));
-            } else {
-                $item->image_url = null;
-            }
-            return $item;
-        });
+    /*
+    |--------------------------------------------------------------------------
+    | General
+    |--------------------------------------------------------------------------
+    */
+
+    public function index(): JsonResponse
+    {
         return response()->json([
             'response_code' => 200,
             'status' => 'success',
             'message' => 'List of absences retrieved successfully',
-            'data' => $absences,
+            'data' => $this->service->getMyAbsences(),
         ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+    public function show(string $id): JsonResponse
     {
-        //
+        return response()->json([
+            'response_code' => 200,
+            'status' => 'success',
+            'message' => 'Absence retrieved successfully',
+            'data' => $this->service->getMyAbsenceById((int) $id),
+        ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    /*
+    |--------------------------------------------------------------------------
+    | Employee
+    |--------------------------------------------------------------------------
+    */
+
+    public function store(AbsenceStoreRequest $request): JsonResponse
     {
-        //
-        $validated = $request->validate([
-            'start' => 'required|date',
-            'end' => 'required|date|after_or_equal:start',
-            'reason' => 'required|in:sakit,darurat,lainnya',
-            'evidence' => 'required|image|max:2048',
-            'description' => 'required|string',
-        ]);
-        $user = Auth::user();
-
-        $path = null;
-        if ($request->hasFile('evidence')) {
-            // Simpan di storage/app/private/job_submission
-            $path = $request->file('evidence')->store('absences', 'public');
-        }
-        $absences = Absence::create([
-            'employee_id' => $user->id,
-            'start' => $validated['start'],
-            'end' => $validated['end'],
-            'description' => $validated['description'] ?? null,
-            'reason' => $validated['reason'],
-            'evidence' => $path,
-            'status' => 'pending',
-        ]);
-
         return response()->json([
             'response_code' => 201,
             'status' => 'success',
             'message' => 'Absence created successfully',
-            'data' => $absences,
+            'data' => $this->service->store($request->validated()),
         ], 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function destroy(string $id): JsonResponse
     {
-        $absence = Absence::with('employee')->find($id);
+        $this->service->destroy((int) $id);
 
-
-        if (!$absence) {
-            return response()->json([
-                'response_code' => 404,
-                'status' => 'error',
-                'message' => 'Absence not found',
-            ]);
-        }
-
-        return response()->json([
-            'response_code' => 200,
-            'status' => 'success',
-            'message' => 'Absence details retrieved successfully',
-            'data' => $absence,
-        ]);
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the status of the specified resource in storage.
-     */
-    public function spvApprovalAbsence(Request $request, string $id)
-    {
-        $absence = Absence::find($id);
-
-        if (!$absence) {
-            return response()->json([
-                'response_code' => 404,
-                'status' => 'error',
-                'message' => 'Absence not found',
-            ], 404);
-        }
-
-        $validated = $request->validate([
-            'status' => 'sometimes|in:pending,approved,rejected',
-        ]);
-
-        if ($absence->status !== 'pending') {
-            return response()->json([
-                'response_code' => 400,
-                'status' => 'error',
-                'message' => 'Absence status already processed and cannot be updated',
-            ], 400);
-        }
-
-        // Update hanya status
-        $absence->update([
-            'status' => $validated['status'] ?? $absence->status,
-        ]);
-
-        $absence->save();
-
-        return response()->json([
-            'response_code' => 200,
-            'status' => 'success',
-            'message' => 'Absence status updated successfully',
-            'data' => $absence->fresh(),
-        ], 200);
-    }
-    /**
-     * Mendapatkan data izin berdasarkan divisi dan tanggal terbaru untuk role supervisor
-     */
-    public function spvSelectAbsences(Request $request)
-    {
-        $user = Auth::user();
-        $todayStart = now()->startOfDay();
-        $todayEnd   = now()->endOfDay();
-
-        $absences = Absence::query()->select([
-            'id',
-            'start',
-            'end',
-            'reason',
-            'description',
-            'evidence',
-            'status',
-            'submitted_at',
-            'created_at',
-        ])->with('employee:id,name,division')
-            ->whereHas('employee', function ($query) use ($user) {
-                $query->where('division', $user->division)->role('gardener');
-            })
-            ->whereBetween('created_at', [$todayStart, $todayEnd])
-            ->latest('submitted_at')
-            ->get();
-
-        $absences->transform(function ($item) {
-            if ($item->evidence) {
-                $item->image_url = URL::to(Storage::url($item->evidence));
-            } else {
-                $item->image_url = null;
-            }
-            return $item;
-        });
-
-        return response()->json([
-            'response_code' => 200,
-            'status' => 'success',
-            'message' => $absences->isEmpty()
-                ? 'Tidak Menemukan Data Absensi'
-                : 'Berhasil Menemukan Data Absensi',
-            'data' => $absences,
-        ]);
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        $absence = Absence::find($id);
-        if (!$absence) {
-            return response()->json([
-                'response_code' => 404,
-                'status' => 'error',
-                'message' => 'Absence not found',
-            ], 404);
-        }
-        if ($absence->evidence && Storage::exists($absence->evidence)) {
-            Storage::delete($absence->evidence);
-        }
-        $absence->delete();
         return response()->json([
             'response_code' => 200,
             'status' => 'success',
             'message' => 'Absence deleted successfully',
-        ], 200);
+        ]);
     }
 
-    public function getMyAbsencesByDate(Request $request)
-    {
-        $request->validate([
-            'date' => 'required|date',
-        ]);
-
-        $user = Auth::user();
-        $date = $request->input('date');
-
-        $absences = Absence::with('employee')
-            ->where('employee_id', $user->id)
-            ->whereDate('created_at', $date)
-            ->get();
-
-        $absences->transform(function ($item) {
-            if ($item->evidence) {
-                $item->image_url = URL::to(Storage::url($item->evidence));
-            } else {
-                $item->image_url = null;
-            }
-            return $item;
-        });
-
+    public function getMyAbsencesByDate(
+        AbsenceFilterByDateRequest $request
+    ): JsonResponse {
         return response()->json([
             'response_code' => 200,
             'status' => 'success',
-            'message' => $absences->isEmpty()
-                ? 'Tidak Menemukan Data Absensi'
-                : 'Berhasil Menemukan Data Absensi',
-            'data' => $absences,
+            'message' => 'Absences retrieved successfully',
+            'data' => $this->service->getMyAbsencesByDate(
+                $request->validated()['date']
+            ),
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Supervisor
+    |--------------------------------------------------------------------------
+    */
+
+    public function spvSelectAbsences(): JsonResponse
+    {
+        return response()->json([
+            'response_code' => 200,
+            'status' => 'success',
+            'message' => 'Absences retrieved successfully',
+            'data' => $this->service->spvSelectGardenerAbsencesToday(),
+        ]);
+    }
+
+    public function spvApprovalAbsence(
+        AbsenceUpdateStatusRequest $request,
+        string $id
+    ): JsonResponse {
+        return response()->json([
+            'response_code' => 200,
+            'status' => 'success',
+            'message' => 'Absence status updated successfully',
+            'data' => $this->service->spvApproveGardenerAbsence(
+                (int) $id,
+                $request->validated()['status']
+            ),
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Site Manager
+    |--------------------------------------------------------------------------
+    */
+
+    public function siteManagerSelectAbsences(): JsonResponse
+    {
+        $data = $this->service->siteManagerSelectSpvAndStaffAbsencesToday();
+        return response()->json([
+            'response_code' => 200,
+            'status' => 'success',
+            'message' => $data->isEmpty()
+                ? 'Tidak ada absences untuk hari ini'
+                : 'Berhasil mengambil absences untuk hari ini',
+            'data' => $data,
+        ]);
+    }
+
+    public function siteManagerApprovalAbsence(
+        AbsenceUpdateStatusRequest $request,
+        string $id
+    ): JsonResponse {
+        return response()->json([
+            'response_code' => 200,
+            'status' => 'success',
+            'message' => 'Absence status updated successfully',
+            'data' => $this->service
+                ->siteManagerApproveSpvAndStaffAbsence(
+                    (int) $id,
+                    $request->validated()['status']
+                ),
+        ]);
+    }
+
+
+    public function getAbsencesByDivisionAndDate(
+        AbsenceFilterByDateAndDivisionRequest $request
+    ): JsonResponse {
+        $data = $this->service->getAbsencesByDivisionAndDate(
+            $request->division,
+            $request->date
+        );
+        return response()->json([
+            'response_code' => 200,
+            'status' => 'success',
+            'message' => 'Absences retrieved successfully',
+            'data' => $data->isEmpty()
+                ? 'No absences found for the specified division and date'
+                : $data
         ]);
     }
 }

@@ -66,6 +66,11 @@ class UserResource extends Resource
                         'Sektor 3' => 'Sektor 3',
                         'Sektor 4' => 'Sektor 4',
                         'Sektor 5' => 'Sektor 5',
+                        'Sektor 6' => 'Sektor 6',
+                        'Sektor 7' => 'Sektor 7',
+                        'Sektor 8' => 'Sektor 8',
+                        'Sektor 9' => 'Sektor 9',
+                        'Sektor 10' => 'Sektor 10',
                     ])
                     ->required(),
                 Select::make('gender')

@@ -3,61 +3,68 @@
 namespace App\Services;
 
 use App\Models\JobSubmission;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class JobSubmissionService
 {
     public function getAll()
     {
-        return JobSubmission::with(['employee', 'category'])
-            ->latest()
-            ->get()
-            ->map(fn($item) => $this->appendBeforeAfterUrl($item));
+        return JobSubmission::query()
+            ->with(['employee:id,name,division', 'category:id,name'])
+            ->latest('submitted_at')
+            ->get();
     }
 
-    public function getByDate($date)
+    public function getByDate(string $date)
     {
-        return JobSubmission::with(['employee', 'category'])
+        return JobSubmission::query()
+            ->with(['employee:id,name,division', 'category:id,name'])
             ->where('employee_id', Auth::id())
             ->whereDate('submitted_at', $date)
-            ->get()
-            ->map(fn($item) => $this->appendBeforeAfterUrl($item));
+            ->latest('submitted_at')
+            ->get();
+    }
+    public function getByDivisionAndDate(string $division, string $date)
+    {
+        return JobSubmission::with(['employee', 'category'])
+            ->whereRelation('employee', 'division', $division)
+            ->whereDate('submitted_at', $date)
+            ->latest('submitted_at')
+            ->get();
     }
 
-    public function store($data)
+    public function store(array $data): JobSubmission
     {
-        $beforePath = $data['before']->store('job_submissions/before', 'public');
-        $afterPath = $data['after']->store('job_submissions/after', 'public');
-
         return JobSubmission::create([
-            'category_id' => $data['category_id'],
-            'employee_id' => Auth::id(),
+            'category_id'  => $data['category_id'],
+            'employee_id'  => Auth::id(),
             'submitted_at' => now(),
-            'status' => $data['status'] ?? 'pending',
-            'before' => $beforePath,
-            'after' => $afterPath,
+            'status'       => $data['status'] ?? 'pending',
+            'before'       => $data['before']->store('job_submissions/before', 'public'),
+            'after'        => $data['after']->store('job_submissions/after', 'public'),
         ]);
     }
 
-    public function approve($submission, $status)
+    public function approve(JobSubmission $submission, string $status): JobSubmission
     {
         if ($submission->status !== 'pending') {
             throw new \Exception('Submission already processed');
         }
 
-        $submission->update(['status' => $status]);
+        $submission->update([
+            'status' => $status,
+            'approved_by' => Auth::id(),
+        ]);
 
         return $submission->fresh();
     }
 
     public function getTodaySubmissionsByDivision(): array
     {
-        $authUser = Auth::user();
-
-        $todayStart = now()->startOfDay();
-        $todayEnd   = now()->endOfDay();
+        $user = Auth::user();
 
         $submissions = JobSubmission::query()
             ->select([
@@ -74,14 +81,15 @@ class JobSubmissionService
                 'employee:id,name,division',
                 'category:id,name',
             ])
-            ->whereBetween('submitted_at', [$todayStart, $todayEnd])
-            ->whereHas('employee', function ($query) use ($authUser) {
-                $query->where('division', $authUser->division)
-                    ->role('gardener');
-            })
+            ->whereDate('submitted_at', today())
+            ->whereHas(
+                'employee',
+                fn($q) =>
+                $q->where('division', $user->division)
+                    ->role('gardener')
+            )
             ->latest('submitted_at')
-            ->get()
-            ->map(fn($item) => $this->appendBeforeAfterUrl($item));
+            ->get();
 
         return [
             'data' => $submissions,
@@ -91,34 +99,97 @@ class JobSubmissionService
         ];
     }
 
-
-    public function summary()
+    public function siteManagerSelectToday()
     {
-        $today = Carbon::today();
-        $yesterday = Carbon::yesterday();
+        return JobSubmission::with(['employee:id,name,division', 'category:id,name'])
+            ->whereDate('submitted_at', today())
+            ->whereHas(
+                'employee',
+                fn($q) =>
+                $q->role(['supervisor', 'staff'])
+            )
+            ->latest('submitted_at')
+            ->get();
+    }
+    public function siteManagerApproveSupervisorAndStaffSubmission(int $id, string $status)
+    {
 
-        $todayCount = JobSubmission::where('employee_id', Auth::id())
-            ->whereDate('submitted_at', $today)
-            ->count();
+        $submissions = JobSubmission::with('employee')
+            ->findOrFail($id);
 
-        $yesterdayCount = JobSubmission::where('employee_id', Auth::id())
-            ->whereDate('submitted_at', $yesterday)
-            ->count();
+        //jika role employee bukan supervisor maka tidak bisa approve
+        if (!$submissions->employee->hasAnyRole(['supervisor', 'staff'])) {
+            throw new HttpException(
+                403,
+                'Only supervisor and staff job submission can be approved'
+            );
+        }
 
-        return compact('todayCount', 'yesterdayCount');
+        $submissions->update([
+            'status' => $status,
+            'approved_by' => Auth::id(),
+        ]);
+
+        return $submissions->load(['employee', 'category']);
     }
 
 
-    private function appendBeforeAfterUrl($item)
+    public function summary(): array
     {
-        $item->before_url = $item->before
-            ? url(Storage::url($item->before))
-            : null;
+        $userId = Auth::id();
 
-        $item->after_url = $item->after
-            ? url(Storage::url($item->after))
-            : null;
+        return [
+            'todayCount' => JobSubmission::query()
+                ->where('employee_id', $userId)
+                ->whereDate('submitted_at', today())
+                ->count(),
 
-        return $item;
+            'yesterdayCount' => JobSubmission::query()
+                ->where('employee_id', $userId)
+                ->whereDate('submitted_at', today()->subDay())
+                ->count(),
+        ];
+    }
+    public function getWeeklySubmissionSummaryForCurrentUser(): array
+    {
+        $user = Auth::user();
+
+        $today = Carbon::today();
+        $startDate = $today->copy()->subDays(6);
+
+        $submissions = JobSubmission::select(
+            DB::raw('DATE(submitted_at) as date'),
+            DB::raw('COUNT(*) as total')
+        )
+            ->where('employee_id', $user->id) // 🔥 filter by logged-in user
+            ->whereBetween('submitted_at', [
+                $startDate->startOfDay(),
+                $today->endOfDay()
+            ])
+            ->groupBy('date')
+            ->orderBy('date')
+            ->get()
+            ->keyBy('date');
+
+        $result = [];
+
+        for ($i = 0; $i < 7; $i++) {
+            $date = $startDate->copy()->addDays($i)->toDateString();
+
+            $result[] = [
+                'date' => $date,
+                'total' => $submissions[$date]->total ?? 0,
+            ];
+        }
+
+        return $result;
+    }
+    public function destroy(JobSubmission $submission): void
+    {
+        if ($submission->status !== 'pending') {
+            throw new \Exception('Only pending submissions can be deleted');
+        }
+
+        $submission->delete();
     }
 }

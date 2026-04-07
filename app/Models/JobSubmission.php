@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Events\JobSubmissionStatusUpdated;
 use Illuminate\Database\Eloquent\Model;
+use \App\Events\JobSubmissionCreated;
 
 class JobSubmission extends Model
 {
@@ -33,7 +35,22 @@ class JobSubmission extends Model
         'status',
         'before',
         'after',
+        'approved_by',
     ];
+
+    // ✅ Otomatis dispatch event saat model di-update
+    protected static function booted(): void
+    {
+        static::updated(function (JobSubmission $submission) {
+            if ($submission->wasChanged('status')) {
+                JobSubmissionStatusUpdated::dispatch($submission);
+            }
+        });
+
+        static::created(function (JobSubmission $submission) {
+            JobSubmissionCreated::dispatch($submission);
+        });
+    }
 
     public function employee()
     {
@@ -42,5 +59,9 @@ class JobSubmission extends Model
     public function category()
     {
         return $this->belongsTo(JobCategory::class, 'category_id');
+    }
+    public function approver()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 }

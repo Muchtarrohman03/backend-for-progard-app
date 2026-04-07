@@ -32,6 +32,7 @@ use Filament\Forms\Components\DateTimePicker;
 use Filament\Infolists\Components\ImageEntry;
 use App\Filament\Exports\JobSubmissionExporter;
 use App\Filament\Resources\JobSubmissions\Pages\ManageJobSubmissions;
+use Dom\Text;
 
 class JobSubmissionResource extends Resource
 {
@@ -46,26 +47,6 @@ class JobSubmissionResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            // Relasi ke JobCategory
-            // Select::make('category_id')
-            //     ->label('Job Category')
-            //     ->options(fn() => JobCategory::orderBy('name')->pluck('name', 'id')->toArray())
-            //     ->searchable()
-            //     ->required(),
-
-            // // Relasi ke User (employee)
-            // Select::make('employee_id')
-            //     ->label('Employee')
-            //     ->relationship('employee', 'name') // relasi ke model User
-            //     ->searchable()
-            //     ->required(),
-
-            // // Waktu pengajuan
-            // DateTimePicker::make('submitted_at')
-            //     ->label('Submitted At')
-            //     ->required(),
-
-            // Status pekerjaan
             Select::make('status')
                 ->options([
                     'pending' => 'Pending',
@@ -74,14 +55,6 @@ class JobSubmissionResource extends Resource
                 ])
                 ->default('pending')
                 ->required(),
-
-            // // Upload gambar bukti/laporan
-            // FileUpload::make('image_path')
-            //     ->disk('public')
-            //     ->label('Submission Image')
-            //     ->directory('job_submissions') // simpan di folder storage/app/public/job_submissions
-            //     ->image()
-            //     ->maxSize(2048), // batas 2MB
         ]);
     }
 
@@ -109,6 +82,9 @@ class JobSubmissionResource extends Resource
                     ->disk('public')
                     ->imageWidth(200)
                     ->imageHeight(300)
+                    ->placeholder('-'),
+                TextEntry::make('approver.name')
+                    ->label('Disetujui oleh')
                     ->placeholder('-'),
             ]);
     }
@@ -161,6 +137,9 @@ class JobSubmissionResource extends Resource
                     ->disk('public')
                     ->label('Sesudah')
                     ->toggleable(isToggledHiddenByDefault: false),
+                TextColumn::make('approver.name')
+                    ->label('Disetujui oleh')
+                    ->placeholder('-'),
             ])
             ->filters([
                 SelectFilter::make('status')

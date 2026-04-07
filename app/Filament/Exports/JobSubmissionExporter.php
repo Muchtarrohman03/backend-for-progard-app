@@ -8,6 +8,7 @@ use Filament\Actions\Exports\Exporter;
 use Filament\Actions\Exports\Models\Export;
 use Illuminate\Support\Number;
 
+
 class JobSubmissionExporter extends Exporter
 {
     protected static ?string $model = JobSubmission::class;
@@ -21,7 +22,9 @@ class JobSubmissionExporter extends Exporter
             ExportColumn::make('employee_id'),
             ExportColumn::make('submitted_at'),
             ExportColumn::make('status'),
-            ExportColumn::make('image_path'),
+            ExportColumn::make('before_url'),
+            ExportColumn::make('after_url'),
+            ExportColumn::make('approved_by'),
             ExportColumn::make('created_at'),
             ExportColumn::make('updated_at'),
         ];

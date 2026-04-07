@@ -3,13 +3,18 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Laravel\Sanctum\HasApiTokens;
-use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Notifications\HasDatabaseNotifications;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\HasDatabaseNotifications;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
+/**
+ * @method \Illuminate\Support\Collection getRoleNames()
+ * @method bool hasRole(string|array $roles)
+ * @method bool assignRole(string|array $roles)
+ */
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
@@ -26,6 +31,7 @@ class User extends Authenticatable
         'password',
         'division',
         'gender',
+        'fcm_token',
     ];
 
 
@@ -41,6 +47,7 @@ class User extends Authenticatable
         'password',
         'remember_token',
     ];
+
 
     /**
      * Get the attributes that should be cast.
@@ -65,5 +72,21 @@ class User extends Authenticatable
     public function overtimes()
     {
         return $this->hasMany(Overtime::class, 'employee_id');
+    }
+    public function approvedSubmissions()
+    {
+        return $this->hasMany(JobSubmission::class, 'approved_by');
+    }
+    public function approvedOvertimes()
+    {
+        return $this->hasMany(Overtime::class, 'approved_by');
+    }
+    public function approvedAbsences()
+    {
+        return $this->hasMany(Absence::class, 'approved_by');
+    }
+    public function positions()
+    {
+        return $this->hasMany(Position::class, 'employee_id');
     }
 }

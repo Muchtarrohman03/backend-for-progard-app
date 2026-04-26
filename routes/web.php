@@ -36,3 +36,10 @@ Route::get('/firebase-test', function () {
 Route::get('/', function () {
     return redirect()->route('filament.admin.auth.login');
 });
+
+use App\Events\TestBroadcast;
+
+Route::get('/test-broadcast', function () {
+    broadcast(new TestBroadcast("Hello Reverb 🚀"));
+    return "Event sent!";
+});

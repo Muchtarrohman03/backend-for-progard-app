@@ -22,4 +22,16 @@ class FcmTokenController extends Controller
             'message' => 'FCM token updated',
         ]);
     }
+    // ✅ Hapus FCM token saat logout
+    public function destroy(Request $request)
+    {
+        $request->user()->update([
+            'fcm_token' => null,
+        ]);
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'FCM token deleted',
+        ]);
+    }
 }

@@ -2,16 +2,18 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\ForceLocationUpdateRequested;
 use App\Http\Controllers\Controller;
 use App\Models\Position;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+
 
 class PositionController extends Controller
 {
     // -----------------------------
-    // Helper: subquery ambil latest position per employee
+    // Helper: ambil latest positions
     // -----------------------------
     private function latestPositionsQuery()
     {
@@ -23,116 +25,156 @@ class PositionController extends Controller
     }
 
     // -----------------------------
-    // Helper: eager load yang benar
-    // Sertakan 'id' agar relasi roles bisa di-resolve
+    // Helper: transform response clean
     // -----------------------------
-    private function withEmployee()
+    private function transform($positions)
     {
-        return ['employee:id,name,division', 'employee.roles:id,name'];
-    }
-
-    // -----------------------------
-    // Helper: transform response
-    // -----------------------------
-    private function transform($positions): array
-    {
-        return $positions->map(fn($position) => [
-            'employee_id' => $position->employee_id,
-            'name'        => $position->employee->name ?? null,
-            'role'        => $position->employee->roles->pluck('name')->first() ?? null,
-            'division'    => $position->employee->division ?? null,
-            'latitude'    => (float) $position->latitude,
-            'longitude'   => (float) $position->longitude,
-            'accuracy'    => $position->accuracy,
-            'speed'       => $position->speed,
-            'heading'     => $position->heading,
-            'last_update' => $position->updated_at,
-        ])->values()->all();
-    }
-
-    // -----------------------------
-    // Helper: wrapper response standar
-    // -----------------------------
-    private function success(mixed $data, string $message = 'Success', int $code = 200): JsonResponse
-    {
-        return response()->json([
-            'status'  => 'success',
-            'message' => $message,
-            'data'    => $data,
-        ], $code);
+        return $positions->map(function ($position) {
+            return [
+                'employee_id' => $position->employee_id,
+                'name' => $position->employee->name ?? null,
+                'role' => $position->employee->roles->pluck('name')->first(),
+                'division' => $position->employee->division ?? null,
+                'latitude' => (float) $position->latitude,
+                'longitude' => (float) $position->longitude,
+                'last_update' => $position->created_at,
+            ];
+        });
     }
 
     // -----------------------------
     // Semua user bisa kirim lokasi
     // -----------------------------
-    public function store(Request $request): JsonResponse
+    public function store(Request $request)
     {
-        $validated = $request->validate([
-            'latitude'  => 'required|numeric|between:-90,90',
-            'longitude' => 'required|numeric|between:-180,180',
-            'accuracy'  => 'nullable|numeric|min:0',
-            'speed'     => 'nullable|numeric|min:0',
-            'heading'   => 'nullable|numeric|between:0,360',
+        $request->validate([
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
         ]);
 
         $user = Auth::user();
+        $id = Auth::id();
 
         Position::create([
-            'employee_id' => $user->id,
-            'latitude'    => $validated['latitude'],
-            'longitude'   => $validated['longitude'],
-            'accuracy'    => $validated['accuracy'] ?? null,
-            'speed'       => $validated['speed'] ?? null,
-            'heading'     => $validated['heading'] ?? null,
+            'employee_id' => $id,
+            'latitude' => $request->latitude,
+            'longitude' => $request->longitude,
         ]);
 
-        return $this->success([
-            'employee_id' => $user->id,
-            'name'        => $user->name,
-        ], 'Location stored', 201);
+        return response()->json([
+            'message' => 'Location stored',
+            'employee_id' => $id,
+            'name' => $user->name
+        ]);
     }
 
     // -----------------------------
-    // Gardener / Staff / Supervisor: lihat posisi diri sendiri
+    // Gardener / Staff / Supervisor: lihat diri sendiri
     // -----------------------------
-    public function selfPosition(): JsonResponse
+    public function selfPosition()
     {
+        $user = Auth::user();
         $positions = $this->latestPositionsQuery()
-            ->where('employee_id', Auth::id())
-            ->with($this->withEmployee())
+            ->where('employee_id', $user->id)
+            ->with(['employee:id,name,division', 'employee.roles:id,name'])
             ->get();
 
-        return $this->success($this->transform($positions));
+        return response()->json($this->transform($positions));
     }
 
     // -----------------------------
     // Supervisor: lihat gardener di division yang sama
     // -----------------------------
-    public function divisionGardeners(): JsonResponse
+    public function divisionGardeners()
     {
         $user = Auth::user();
-
         $positions = $this->latestPositionsQuery()
             ->whereHas('employee', function ($q) use ($user) {
                 $q->where('division', $user->division)
                     ->role('gardener');
             })
-            ->with($this->withEmployee())
+            ->with(['employee:id,name,division', 'employee.roles:id,name'])
             ->get();
 
-        return $this->success($this->transform($positions));
+        return response()->json($this->transform($positions));
     }
 
     // -----------------------------
-    // Site Manager: lihat semua gardener / staff / supervisor
+    // Site Manager: lihat semua gardener/staff/supervisor
     // -----------------------------
-    public function allPositions(): JsonResponse
+    public function allPositions()
     {
         $positions = $this->latestPositionsQuery()
-            ->whereHas('employee', fn($q) => $q->role(['gardener', 'staff', 'supervisor']))
-            ->with($this->withEmployee())
+            ->whereHas('employee', function ($q) {
+                $q->role(['gardener', 'staff', 'supervisor']);
+            })
+            ->with(['employee:id,name,division', 'employee.roles:id,name'])
             ->get();
 
-        return $this->success($this->transform($positions));
+        return response()->json($this->transform($positions));
+    }
+
+    // ------------------------------
+    // Force update location (manual trigger)
+    // ------------------------------
+    public function forceUpdate(Request $request)
+    {
+        $actor = Auth::user();
+
+        // ── Site Manager → paksa SEMUA role ──────────────────────────
+        if ($actor->hasRole('site_manager')) {
+            ForceLocationUpdateRequested::dispatch(
+                actor: $actor,
+                scope: 'global',
+                division: null
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Force location update dikirim ke semua user (gardener, staff, supervisor)',
+            ]);
+        }
+
+        // ── Supervisor → hanya gardener di divisinya ──────────────────
+        if ($actor->hasRole('supervisor')) {
+            $division    = $actor->division;
+            $divisionKey = str_replace(' ', '_', strtolower($division));
+
+            ForceLocationUpdateRequested::dispatch(
+                actor: $actor,
+                scope: 'division',
+                division: $divisionKey
+            );
+
+            return response()->json([
+                'success'  => true,
+                'message'  => 'Force location update dikirim ke gardener divisi',
+                'division' => $divisionKey,
+            ]);
+        }
+
+        return response()->json(['message' => 'Unauthorized'], 403);
+    }
+
+    // ------------------------------
+    // Cek flag force update (dipanggil client setelah dapat notifikasi)
+    // ------------------------------
+
+    public function checkForceFlag(Request $request)
+    {
+        $user     = Auth::user();
+        $cacheKey = "force_location:{$user->id}";
+        $flag     = Cache::get($cacheKey);
+
+        if (!$flag) {
+            return response()->json(['force_update' => false]);
+        }
+
+        Cache::forget($cacheKey);
+
+        return response()->json([
+            'force_update' => true,
+            'meta'         => $flag,
+        ]);
     }
 }

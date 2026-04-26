@@ -24,6 +24,7 @@ class AuthenticationController extends Controller
             'data' => [
                 'username'     => $result['user']->name,
                 'role'         => $result['user']->roles->pluck('name')->toArray(),
+                'division'     => $result['division'],
                 'access_token' => $result['token'],
             ]
         ]);

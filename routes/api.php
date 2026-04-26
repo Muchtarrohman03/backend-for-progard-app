@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\JobCategoryController;
 use App\Http\Controllers\Api\JobSubmissionController;
 use App\Http\Controllers\Api\OvertimeController;
 use App\Http\Controllers\Api\PositionController;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 
 
@@ -16,15 +17,15 @@ Route::post('/login', [AuthenticationController::class, 'login'])->name('login')
 // ------------------ Get Data ----------------------// 
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/fcm-token', [FcmTokenController::class, 'update']);
+    Route::delete('/fcm-token', [FcmTokenController::class, 'destroy']);
     Route::get('/my-profile', [AuthenticationController::class, 'myProfile']);
     Route::post('/logout', [AuthenticationController::class, 'logout'])->name('logout');
     Route::get('/stat-overview', [AuthenticationController::class, 'statOverview']);
-    Route::post('/position/store', [PositionController::class, 'store']);
-
-
+    Route::get('/position/self', [PositionController::class, 'selfPosition']);
     // Hanya Gardener, staff dan Supervisor
     Route::middleware(['role:gardener|staff|supervisor'])->group(function () {
-        Route::get('/position/self', [PositionController::class, 'selfPosition']);
+        Route::get('position/force-flag', [PositionController::class, 'checkForceFlag']);
+        Route::post('/position/store', [PositionController::class, 'store']);
         Route::get('/job-categories', [JobCategoryController::class, 'index']);
         Route::get('/job-submission/my-submission-by-date', [JobSubmissionController::class, 'getMysubmissionBydate']);
         Route::get('/job-submission/summary', [JobSubmissionController::class, 'submissionSummary']);
@@ -52,7 +53,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
     //hanya Site Manager
     Route::middleware(['role:site_manager'])->group(function () {
-        Route::get('/position/all', [PositionController::class, 'allpositions']);
+        Route::get('/position/all', [PositionController::class, 'allPositions']);
         Route::get('/job-submission', [JobSubmissionController::class, 'index']);
         Route::get('/absence', [AbsenceController::class, 'index']);
         Route::get('/overtime', [OvertimeController::class, 'index']);
@@ -65,5 +66,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/absence/get-absences-by-division-and-date', [AbsenceController::class, 'getAbsencesByDivisionAndDate']);
         Route::get('/absence/sm-select-absences', [AbsenceController::class, 'siteManagerSelectAbsences']);
         Route::put('/absence/approval-sm/{id}', [AbsenceController::class, 'siteManagerApprovalAbsence']);
+    });
+    Route::middleware(['role:site_manager|supervisor'])->group(function () {
+        Route::post('/position/force-update', [PositionController::class, 'forceUpdate']);
     });
 });

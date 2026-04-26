@@ -31,13 +31,16 @@ class AuthenticationService
 
         $user = Auth::user();
 
+        $division = $user->division;
+
         $token = $user->createToken(
             $credentials['device_name'] ?? 'mobile'
         )->plainTextToken;
 
         return [
             'user' => $user,
-            'token' => $token
+            'token' => $token,
+            'division' => $division,
         ];
     }
 

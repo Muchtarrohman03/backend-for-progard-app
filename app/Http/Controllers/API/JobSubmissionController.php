@@ -29,6 +29,7 @@ class JobSubmissionController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => $this->service->getByDate($request->date)
+
         ]);
     }
 

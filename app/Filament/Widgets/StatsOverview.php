@@ -28,25 +28,27 @@ class StatsOverview extends BaseWidget
     protected function getStats(): array
     {
         return [
-            $this->uniformStat(Stat::make('Total Users', User::count())
+            $this->uniformStat(Stat::make('Pengguna', User::count())
                 ->description('Total Pengguna')
                 ->descriptionIcon('heroicon-o-users')
                 ->color('success'),),
 
-            $this->uniformStat(Stat::make('Job Submissions', JobSubmission::count())
+            $this->uniformStat(Stat::make('Laporan Pekerjaan', JobSubmission::count())
                 ->description('Total Pekerjaan')
                 ->descriptionIcon('heroicon-o-document-text')
                 ->color('success'),),
 
-            $this->uniformStat(Stat::make('Job Categories', JobCategory::count())
-                ->description('Total Kategori')
-                ->descriptionIcon('heroicon-o-folder')
-                ->color('danger'),),
-            $this->uniformStat(Stat::make('Absences Request', Absence::count())
+            $this->uniformStat(
+                Stat::make('Kategori Pekerjaan', JobCategory::count())
+                    ->description('Total Kategori')
+                    ->descriptionIcon('heroicon-o-folder')
+                    ->color('danger')
+            ),
+            $this->uniformStat(Stat::make('Laporan Izin', Absence::count())
                 ->description('Total Izin')
                 ->descriptionIcon('heroicon-o-calendar-days')
                 ->color('warning'),),
-            $this->uniformStat(Stat::make('Overtime Request', Overtime::count())
+            $this->uniformStat(Stat::make('Laporan Lembur', Overtime::count())
                 ->description('Total Lembur ')
                 ->descriptionIcon('heroicon-o-clock')
                 ->color('primary'),),

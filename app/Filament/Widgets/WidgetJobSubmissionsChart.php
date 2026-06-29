@@ -10,52 +10,110 @@ use App\Models\JobSubmission; // ✅ kapitalisasi diperbaiki
 
 class WidgetJobSubmissionsChart extends ChartWidget
 {
-    protected ?string $heading = 'Grafik Pengajuan Pekerjaan';
+    protected ?string $heading = 'Grafik Laporan Pekerjaan';
+    public ?string $filter = 'year';
 
     protected function getData(): array
     {
-        $color = '#22c55e'; // success (green-500)
-        $colorTransparent = 'rgba(34, 197, 94, 0.3)';
+        $filter = $this->filter ?? 'year';
 
-        $data = Trend::model(JobSubmission::class)
-            ->between(
-                start: now()->subMonths(6),
-                end: now(),
-            )
-            ->perMonth()
-            ->count();
+        $trend = Trend::model(JobSubmission::class);
+
+        switch ($filter) {
+            case '7days':
+                $data = $trend
+                    ->between(
+                        start: now()->subDays(7),
+                        end: now(),
+                    )
+                    ->perDay()
+                    ->count();
+
+                $labels = $data->map(
+                    fn(TrendValue $value) =>
+                    Carbon::parse($value->date)
+                        ->locale('id')
+                        ->translatedFormat('d M')
+                );
+
+                break;
+
+            case '30days':
+                $data = $trend
+                    ->between(
+                        start: now()->subDays(30),
+                        end: now(),
+                    )
+                    ->perDay()
+                    ->count();
+
+                $labels = $data->map(
+                    fn(TrendValue $value) =>
+                    Carbon::parse($value->date)
+                        ->locale('id')
+                        ->translatedFormat('d M')
+                );
+
+                break;
+
+            case '90days':
+                $data = $trend
+                    ->between(
+                        start: now()->subDays(90),
+                        end: now(),
+                    )
+                    ->perDay()
+                    ->count();
+
+                $labels = $data->map(
+                    fn(TrendValue $value) =>
+                    Carbon::parse($value->date)
+                        ->locale('id')
+                        ->translatedFormat('d M')
+                );
+
+                break;
+
+            case 'year':
+                $data = $trend
+                    ->between(
+                        start: now()->startOfYear(),
+                        end: now(),
+                    )
+                    ->perMonth()
+                    ->count();
+
+                $labels = $data->map(
+                    fn(TrendValue $value) =>
+                    Carbon::parse($value->date)
+                        ->locale('id')
+                        ->translatedFormat('F')
+                );
+
+                break;
+        }
 
         return [
             'datasets' => [
                 [
-                    'label' => 'Job Submissions',
+                    'label' => 'Jumlah Laporan Pekerjaan',
                     'data' => $data->map(fn(TrendValue $value) => $value->aggregate),
-                    'borderColor' => $color,
-                    'backgroundColor' => $colorTransparent,
-                    'pointBackgroundColor' => $color,
-                    'pointBorderColor' => $color,
-                    'pointHoverBackgroundColor' => $color,
-                    'pointHoverBorderColor' => $color,
-                    'tension' => 0.4,
+                    'borderColor' => '#22c55e',
+                    'backgroundColor' => 'rgba(34, 197, 94, 0.2)',
                     'fill' => true,
+                    'tension' => 0.4,
                 ],
             ],
-            'labels' => $data->map(function (TrendValue $value) {
-                // parse supaya jadi Carbon object → aman memanggil locale()/translatedFormat()
-                $date = Carbon::parse($value->date)->locale('id');
-
-                // 'F Y' = Bulan penuh + Tahun (contoh: "November 2025")
-                return $date->translatedFormat('F Y');
-            })->values()->toArray(),
+            'labels' => $labels->toArray(),
         ];
     }
     protected function getFilters(): ?array
     {
         return [
-            'today' => 'Hari ini',
-            'week' => 'Minggu ini',
-            'month' => 'Bulan ini',
-            'year' => 'Tahun ini',
+            '7days' => '7 Hari Terakhir',
+            '30days' => '30 Hari Terakhir',
+            '90days' => '90 Hari Terakhir',
+            'year' => 'Tahun Ini',
         ];
     }
 

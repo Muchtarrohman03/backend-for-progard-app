@@ -14,25 +14,31 @@ class JobSubmissionService
     {
         return JobSubmission::query()
             ->with(['employee:id,name,division', 'category:id,name'])
-            ->latest('submitted_at')
+            ->latest('created_at')
             ->get();
     }
 
     public function getByDate(string $date)
     {
-        return JobSubmission::query()
-            ->with(['employee:id,name,division', 'category:id,name'])
+        return JobSubmission::with(['employee', 'category'])
             ->where('employee_id', Auth::id())
-            ->whereDate('submitted_at', $date)
-            ->latest('submitted_at')
+            ->whereDate('created_at', $date)  // ← ganti ke created_at
+            ->latest('created_at')
             ->get();
     }
     public function getByDivisionAndDate(string $division, string $date)
     {
-        return JobSubmission::with(['employee', 'category'])
-            ->whereRelation('employee', 'division', $division)
-            ->whereDate('submitted_at', $date)
-            ->latest('submitted_at')
+        return JobSubmission::query()
+
+            ->whereHas('employee.profile.division', function ($q) use ($division) {
+
+                $q->where('name', $division);
+            })
+
+            ->whereDate('created_at', $date)
+
+            ->latest('created_at')
+
             ->get();
     }
 
@@ -41,14 +47,14 @@ class JobSubmissionService
         return JobSubmission::create([
             'category_id'  => $data['category_id'],
             'employee_id'  => Auth::id(),
-            'submitted_at' => now(),
+            // 'submitted_at' => now(),
             'status'       => $data['status'] ?? 'pending',
             'before'       => $data['before']->store('job_submissions/before', 'public'),
             'after'        => $data['after']->store('job_submissions/after', 'public'),
         ]);
     }
 
-    public function approve(JobSubmission $submission, string $status): JobSubmission
+    public function approve(JobSubmission $submission, string $status, string $comment = null): JobSubmission
     {
         if ($submission->status !== 'pending') {
             throw new \Exception('Submission already processed');
@@ -57,6 +63,7 @@ class JobSubmissionService
         $submission->update([
             'status' => $status,
             'approved_by' => Auth::id(),
+            'comment' => $comment,
         ]);
 
         return $submission->fresh();
@@ -74,21 +81,26 @@ class JobSubmissionService
                 'status',
                 'before',
                 'after',
-                'submitted_at',
+                // 'submitted_at', ← hapus
                 'created_at'
             ])
             ->with([
-                'employee:id,name,division',
+                'employee.profile.division',
                 'category:id,name',
             ])
-            ->whereDate('submitted_at', today())
-            ->whereHas(
-                'employee',
-                fn($q) =>
-                $q->where('division', $user->division)
-                    ->role('gardener')
-            )
-            ->latest('submitted_at')
+            ->whereDate('created_at', today())  // ← ganti submitted_at ke created_at
+
+            ->whereHas('employee', function ($q) use ($user) {
+                $q->role('gardener')
+                    ->whereHas('profile', function ($profileQuery) use ($user) {
+                        $profileQuery->where(
+                            'division_id',
+                            $user->profile?->division_id
+                        );
+                    });
+            })
+
+            ->latest('created_at')
             ->get();
 
         return [
@@ -101,21 +113,23 @@ class JobSubmissionService
 
     public function siteManagerSelectToday()
     {
-        return JobSubmission::with(['employee:id,name,division', 'category:id,name'])
-            ->whereDate('submitted_at', today())
+        return JobSubmission::with(['employee', 'category'])
+            ->whereDate('created_at', today())
             ->whereHas(
                 'employee',
                 fn($q) =>
                 $q->role(['supervisor', 'staff'])
             )
-            ->latest('submitted_at')
+            ->latest('created_at')
             ->get();
     }
-    public function siteManagerApproveSupervisorAndStaffSubmission(int $id, string $status)
+    public function siteManagerApproveSupervisorAndStaffSubmission(int $id, string $status, string $comment = null)
     {
 
         $submissions = JobSubmission::with('employee')
             ->findOrFail($id);
+
+
 
         //jika role employee bukan supervisor maka tidak bisa approve
         if (!$submissions->employee->hasAnyRole(['supervisor', 'staff'])) {
@@ -124,32 +138,21 @@ class JobSubmissionService
                 'Only supervisor and staff job submission can be approved'
             );
         }
+        if ($submissions->status !== 'pending') {
+            throw new \Exception('Submission already processed');
+        }
 
         $submissions->update([
             'status' => $status,
             'approved_by' => Auth::id(),
+            'comment' => $comment,
         ]);
 
         return $submissions->load(['employee', 'category']);
     }
 
 
-    public function summary(): array
-    {
-        $userId = Auth::id();
 
-        return [
-            'todayCount' => JobSubmission::query()
-                ->where('employee_id', $userId)
-                ->whereDate('submitted_at', today())
-                ->count(),
-
-            'yesterdayCount' => JobSubmission::query()
-                ->where('employee_id', $userId)
-                ->whereDate('submitted_at', today()->subDay())
-                ->count(),
-        ];
-    }
     public function getWeeklySubmissionSummaryForCurrentUser(): array
     {
         $user = Auth::user();
@@ -158,11 +161,11 @@ class JobSubmissionService
         $startDate = $today->copy()->subDays(6);
 
         $submissions = JobSubmission::select(
-            DB::raw('DATE(submitted_at) as date'),
+            DB::raw('DATE(created_at) as date'),
             DB::raw('COUNT(*) as total')
         )
             ->where('employee_id', $user->id) // 🔥 filter by logged-in user
-            ->whereBetween('submitted_at', [
+            ->whereBetween('created_at', [
                 $startDate->startOfDay(),
                 $today->endOfDay()
             ])
@@ -191,5 +194,34 @@ class JobSubmissionService
         }
 
         $submission->delete();
+    }
+    public function getGardenerRankingByDivision()
+    {
+        $user = Auth::user();
+
+        $ranking = JobSubmission::query()
+            ->select(
+                'employee_id',
+                DB::raw('COUNT(*) as total_submissions')
+            )
+            ->with([
+                'employee:id,name,division'
+            ])
+            ->whereHas('employee', function ($q) use ($user) {
+                $q->whereHas('profile', function ($q) use ($user) {
+                    $q->where('division_id', $user->profile->division_id);
+                })
+                    ->role('gardener');
+            })
+            ->groupBy('employee_id')
+            ->orderByDesc('total_submissions')
+            ->get();
+
+        return [
+            'data' => $ranking,
+            'message' => $ranking->isEmpty()
+                ? 'Ranking gardener tidak ditemukan'
+                : 'Ranking gardener berhasil diambil'
+        ];
     }
 }

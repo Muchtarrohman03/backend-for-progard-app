@@ -96,7 +96,8 @@ class OvertimeController extends Controller
     ) {
         $overtime = $this->service->approvalSpv(
             $id,
-            $request->status
+            $request->status,
+            $request->comment
         );
 
         return response()->json([
@@ -125,7 +126,8 @@ class OvertimeController extends Controller
     ) {
         $overtime = $this->service->approvalSiteManager(
             $id,
-            $request->status
+            $request->status,
+            $request->comment
         );
 
         return response()->json([

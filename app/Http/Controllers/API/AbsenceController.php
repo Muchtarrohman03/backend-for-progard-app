@@ -106,10 +106,12 @@ class AbsenceController extends Controller
             'response_code' => 200,
             'status' => 'success',
             'message' => 'Absence status updated successfully',
-            'data' => $this->service->spvApproveGardenerAbsence(
-                (int) $id,
-                $request->validated()['status']
-            ),
+            'data' => $this->service
+                ->spvApproveGardenerAbsence(
+                    (int) $id,
+                    $request->validated()['status'],
+                    $request->validated()['comment']
+                ),
         ]);
     }
 
@@ -143,7 +145,8 @@ class AbsenceController extends Controller
             'data' => $this->service
                 ->siteManagerApproveSpvAndStaffAbsence(
                     (int) $id,
-                    $request->validated()['status']
+                    $request->validated()['status'],
+                    $request->validated()['comment']
                 ),
         ]);
     }

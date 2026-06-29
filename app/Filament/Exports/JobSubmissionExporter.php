@@ -8,7 +8,6 @@ use Filament\Actions\Exports\Exporter;
 use Filament\Actions\Exports\Models\Export;
 use Illuminate\Support\Number;
 
-
 class JobSubmissionExporter extends Exporter
 {
     protected static ?string $model = JobSubmission::class;
@@ -18,24 +17,50 @@ class JobSubmissionExporter extends Exporter
         return [
             ExportColumn::make('id')
                 ->label('ID'),
-            ExportColumn::make('category_id'),
-            ExportColumn::make('employee_id'),
-            ExportColumn::make('submitted_at'),
-            ExportColumn::make('status'),
-            ExportColumn::make('before_url'),
-            ExportColumn::make('after_url'),
-            ExportColumn::make('approved_by'),
-            ExportColumn::make('created_at'),
-            ExportColumn::make('updated_at'),
+
+            ExportColumn::make('category.name')
+                ->label('Kategori Pekerjaan'),
+
+            ExportColumn::make('employee.name')   // ← ganti dari employee_id
+                ->label('Karyawan'),
+
+            ExportColumn::make('submitted_at')
+                ->label('Dibuat pada'),
+
+            ExportColumn::make('status')
+                ->label('Status'),
+
+            ExportColumn::make('before_url')
+                ->label('Foto Sebelum'),
+
+            ExportColumn::make('after_url')
+                ->label('Foto Sesudah'),
+
+            ExportColumn::make('approver.name')
+                ->label('Disetujui oleh'),
+
+            ExportColumn::make('comment')
+                ->label('Komentar'),
+
+            ExportColumn::make('created_at')
+                ->label('Dibuat'),
+
+            ExportColumn::make('updated_at')
+                ->label('Diperbarui'),
         ];
     }
 
     public static function getCompletedNotificationBody(Export $export): string
     {
-        $body = 'Your job submission export has completed and ' . Number::format($export->successful_rows) . ' ' . str('row')->plural($export->successful_rows) . ' exported.';
+        $successCount = Number::format($export->successful_rows);
+        $rowWord = str('baris')->plural($export->successful_rows);
+
+        $body = "Export laporan pekerjaan selesai. {$successCount} {$rowWord} berhasil diekspor.";
 
         if ($failedRowsCount = $export->getFailedRowsCount()) {
-            $body .= ' ' . Number::format($failedRowsCount) . ' ' . str('row')->plural($failedRowsCount) . ' failed to export.';
+            $failedCount = Number::format($failedRowsCount);
+            $failedWord = str('baris')->plural($failedRowsCount);
+            $body .= " {$failedCount} {$rowWord} gagal diekspor, silakan coba lagi.";
         }
 
         return $body;

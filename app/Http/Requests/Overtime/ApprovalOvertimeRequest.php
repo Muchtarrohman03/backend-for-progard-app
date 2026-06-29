@@ -14,7 +14,8 @@ class ApprovalOvertimeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => 'required|in:approved,rejected'
+            'status' => 'required|in:approved,rejected',
+            'comment' => 'nullable|string|max:255',
         ];
     }
 }

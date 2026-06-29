@@ -18,25 +18,32 @@ class OvertimeExporter extends Exporter
     public static function getColumns(): array
     {
         return [
-            ExportColumn::make('id'),
-            ExportColumn::make('employee.name')->label('Employee'),
-            ExportColumn::make('category.name')->label('Category'),
-            ExportColumn::make('start')->label('Start Time'),
-            ExportColumn::make('end')->label('End Time'),
+            ExportColumn::make('id')->label('ID'),
+            ExportColumn::make('employee.name')->label('Karyawan'),
+            ExportColumn::make('category.name')->label('Kategori'),
+            ExportColumn::make('start')->label('Waktu Mulai'),
+            ExportColumn::make('end')->label('Waktu Selesai'),
             ExportColumn::make('status')->label('Status'),
-            ExportColumn::make('submitted_at')->label('Submitted At'),
-
-            // Kembalikan ke text URL, BUKAN gambar
-            ExportColumn::make('image_url')->label('Image URL'),
+            ExportColumn::make('submitted_at')->label('Dikirim Pada'),
+            ExportColumn::make('before_url')->label('Foto Sebelum'),
+            ExportColumn::make('after_url')->label('Foto Sesudah'),
+            ExportColumn::make('approver.name')->label('Disetujui oleh'),
+            ExportColumn::make('comment')->label('Komentar'),
+            ExportColumn::make('created_at')->label('Dibuat'),
+            ExportColumn::make('updated_at')->label('Diperbarui'),
         ];
     }
-
     public static function getCompletedNotificationBody(Export $export): string
     {
-        $body = 'Your overtime export has completed and ' . Number::format($export->successful_rows) . ' ' . str('row')->plural($export->successful_rows) . ' exported.';
+        $successCount = Number::format($export->successful_rows);
+        $rowWord = str('baris')->plural($export->successful_rows);
+
+        $body = "Export lembur selesai. {$successCount} {$rowWord} berhasil diekspor.";
 
         if ($failedRowsCount = $export->getFailedRowsCount()) {
-            $body .= ' ' . Number::format($failedRowsCount) . ' ' . str('row')->plural($failedRowsCount) . ' failed to export.';
+            $failedCount = Number::format($failedRowsCount);
+            $failedWord = str('baris')->plural($failedRowsCount);
+            $body .= " {$failedCount} {$rowWord} gagal diekspor, silakan coba lagi.";
         }
 
         return $body;

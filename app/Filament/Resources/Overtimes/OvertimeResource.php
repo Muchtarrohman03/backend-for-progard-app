@@ -2,43 +2,55 @@
 
 namespace App\Filament\Resources\Overtimes;
 
-use UnitEnum;
-use BackedEnum;
-use App\Models\User;
-use App\Models\Overtime;
-use Filament\Tables\Table;
-use App\Models\JobCategory;
-use Filament\Schemas\Schema;
-use Filament\Actions\EditAction;
-use Filament\Actions\ViewAction;
-use Filament\Resources\Resource;
-use Filament\Actions\ActionGroup;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\ExportAction;
-use Filament\Support\Icons\Heroicon;
-use Filament\Actions\BulkActionGroup;
-use Filament\Forms\Components\Select;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Forms\Components\Textarea;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Forms\Components\TextInput;
-use Filament\Tables\Columns\ImageColumn;
-use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\TimePicker;
 use App\Filament\Exports\OvertimeExporter;
-use Filament\Infolists\Components\TextEntry;
-use Filament\Forms\Components\DateTimePicker;
-use Filament\Infolists\Components\ImageEntry;
 use App\Filament\Resources\Overtimes\Pages\ManageOvertimes;
+use App\Models\JobCategory;
+use App\Models\Overtime;
+use App\Models\User;
+use BackedEnum;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ExportAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\TimePicker;
+use Filament\Infolists\Components\ImageEntry;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\ImageColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use PhpParser\Node\Stmt\Label;
+use Illuminate\Contracts\Support\Htmlable;
+use UnitEnum;
 
 class OvertimeResource extends Resource
 {
     protected static ?string $model = Overtime::class;
 
+
+
+    public function getTitle(): string | Htmlable
+    {
+        return __('Custom Page Title');
+    }
+
     protected static string | UnitEnum | null $navigationGroup = 'Manajemen Pengajuan';
 
-    protected static ?string $navigationLabel = 'Pengajuan Lembur';
+    protected static ?string $navigationLabel = 'Laporan Lembur';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClock;
 
@@ -103,6 +115,8 @@ class OvertimeResource extends Resource
     {
         return $schema
             ->components([
+                TextEntry::make('id')
+                    ->label('ID'),
                 TextEntry::make('start')
                     ->label('Mulai')
                     ->time(),
@@ -111,7 +125,7 @@ class OvertimeResource extends Resource
                     ->time(),
                 TextEntry::make('category.name')
                     ->label('Kategori'),
-                TextEntry::make('employee.name')
+                TextEntry::make('employee.profile.name')
                     ->label('Karyawan'),
 
                 TextEntry::make('status')
@@ -143,6 +157,10 @@ class OvertimeResource extends Resource
     {
         return $table
             ->columns([
+                TextColumn::make('id')
+                    ->label('ID')
+                    ->sortable()
+                    ->searchable(),
                 TextColumn::make('start')
                     ->label('Mulai')
                     ->time()
@@ -160,7 +178,7 @@ class OvertimeResource extends Resource
                     ->searchable(),
 
                 // Nama karyawan dari relasi
-                TextColumn::make('employee.name')
+                TextColumn::make('employee.profile.name')
                     ->label('Karyawan')
                     ->sortable()
                     ->searchable(),
@@ -179,7 +197,7 @@ class OvertimeResource extends Resource
                         'success' => 'approved',
                         'danger' => 'rejected',
                     ]),
-                TextColumn::make('submitted_at')
+                TextColumn::make('created_at')
                     ->label('Dibuat')
                     ->dateTime()
                     ->sortable(),
@@ -191,9 +209,42 @@ class OvertimeResource extends Resource
                     ->disk('public')
                     ->label('Sesudah')
                     ->toggleable(isToggledHiddenByDefault: false),
+                TextColumn::make('approver.profile.name')
+                    ->label('Penyetuju')
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                SelectFilter::make('status')
+                    ->label('Filter Status')
+                    ->options([
+                        'pending' => 'Pending',
+                        'approved' => 'Approved',
+                        'rejected' => 'Rejected',
+                    ])
+                    ->multiple(),
+
+                Filter::make('created_at')
+                    ->label('Tanggal Dibuat')
+                    ->form([
+                        DatePicker::make('from')
+                            ->label('Dari tanggal'),
+                        DatePicker::make('until')
+                            ->label('Sampai tanggal'),
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        return $query
+                            ->when(
+                                $data['from'],
+                                fn(Builder $query, $date) =>
+                                $query->whereDate('created_at', '>=', $date),
+                            )
+                            ->when(
+                                $data['until'],
+                                fn(Builder $query, $date) =>
+                                $query->whereDate('created_at', '<=', $date),
+                            );
+                    }),
             ])
             ->recordActions([
                 ActionGroup::make([
@@ -209,8 +260,8 @@ class OvertimeResource extends Resource
             ])
             ->headerActions([
                 ExportAction::make()
-                    ->icon(Heroicon::ArrowDownTray)
-                    ->label('Unduh')
+                    ->icon(Heroicon::DocumentArrowUp)
+                    ->label('Ekspor')
                     ->exporter(OvertimeExporter::class)
                     ->color('primary')
                     ->chunkSize(100),

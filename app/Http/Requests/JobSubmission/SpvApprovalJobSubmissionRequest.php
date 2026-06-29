@@ -23,6 +23,7 @@ class SpvApprovalJobSubmissionRequest extends FormRequest
     {
         return [
             'status' => 'required|in:pending,approved,rejected',
+            'comment' => 'nullable|string|max:255',
         ];
     }
 }

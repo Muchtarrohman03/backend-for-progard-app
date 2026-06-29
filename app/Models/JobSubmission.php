@@ -36,6 +36,13 @@ class JobSubmission extends Model
         'before',
         'after',
         'approved_by',
+        'comment',
+    ];
+
+    protected $with = [
+        'employee.profile',
+        'approver.profile',
+        'category',
     ];
 
     // ✅ Otomatis dispatch event saat model di-update

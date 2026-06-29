@@ -64,9 +64,9 @@ class JobSubmissionResource extends Resource
             ->components([
                 TextEntry::make('category.name')
                     ->label('Kategori Pekerjaan'),
-                TextEntry::make('employee.name')
+                TextEntry::make('employee.profile.name')
                     ->label('Karyawan'),
-                TextEntry::make('submitted_at')
+                TextEntry::make('created_at')
                     ->label('Dibuat pada')
                     ->dateTime(),
                 TextEntry::make('status')
@@ -83,7 +83,7 @@ class JobSubmissionResource extends Resource
                     ->imageWidth(200)
                     ->imageHeight(300)
                     ->placeholder('-'),
-                TextEntry::make('approver.name')
+                TextEntry::make('approver.profile.name')
                     ->label('Disetujui oleh')
                     ->placeholder('-'),
             ]);
@@ -105,12 +105,12 @@ class JobSubmissionResource extends Resource
                     ->searchable(),
 
                 // Nama karyawan dari relasi
-                TextColumn::make('employee.name')
+                TextColumn::make('employee.profile.name')
                     ->label('Karyawan')
                     ->sortable()
                     ->searchable(),
 
-                TextColumn::make('submitted_at')
+                TextColumn::make('created_at')
                     ->label('Dibuat')
                     ->dateTime()
                     ->sortable(),
@@ -137,7 +137,7 @@ class JobSubmissionResource extends Resource
                     ->disk('public')
                     ->label('Sesudah')
                     ->toggleable(isToggledHiddenByDefault: false),
-                TextColumn::make('approver.name')
+                TextColumn::make('approver.profile.name')
                     ->label('Disetujui oleh')
                     ->placeholder('-'),
             ])
@@ -151,8 +151,8 @@ class JobSubmissionResource extends Resource
                     ])
                     ->multiple(),
 
-                Filter::make('submitted_at')
-                    ->label('Tanggal Submit')
+                Filter::make('created_at')
+                    ->label('Tanggal Dibuat')
                     ->form([
                         DatePicker::make('from')
                             ->label('Dari tanggal'),
@@ -164,12 +164,12 @@ class JobSubmissionResource extends Resource
                             ->when(
                                 $data['from'],
                                 fn(Builder $query, $date) =>
-                                $query->whereDate('submitted_at', '>=', $date),
+                                $query->whereDate('created_at', '>=', $date),
                             )
                             ->when(
                                 $data['until'],
                                 fn(Builder $query, $date) =>
-                                $query->whereDate('submitted_at', '<=', $date),
+                                $query->whereDate('created_at', '<=', $date),
                             );
                     }),
             ])
@@ -187,8 +187,8 @@ class JobSubmissionResource extends Resource
             ])
             ->headerActions([
                 ExportAction::make()
-                    ->icon(Heroicon::ArrowDownTray)
-                    ->label('Unduh')
+                    ->icon(Heroicon::DocumentArrowUp)
+                    ->label('Ekspor')
                     ->exporter(JobSubmissionExporter::class)
                     ->color('primary')
                     // opsional: limit baris, disk, format

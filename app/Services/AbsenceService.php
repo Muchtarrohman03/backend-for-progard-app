@@ -119,14 +119,16 @@ class AbsenceService
         return Absence::with('employee')
             ->whereDate('start', today())
             ->whereHas('employee', function ($q) use ($user) {
-                $q->where('division', $user->division)
+                $q->whereHas('profile', function ($q) use ($user) {
+                    $q->where('division_id', $user->profile->division_id);
+                })
                     ->role('gardener');
             })
             ->latest('created_at')
             ->get();
     }
 
-    public function spvApproveGardenerAbsence(int $absenceId, string $status): Absence
+    public function spvApproveGardenerAbsence(int $absenceId, string $status, string $comment): Absence
     {
         $this->validateApprovalStatus($status);
 
@@ -141,13 +143,29 @@ class AbsenceService
             throw new HttpException(403, 'Only gardener absence can be approved');
         }
 
-        if ($employee->division !== $authUser->division) {
-            throw new HttpException(403, 'Cannot approve absence from different division');
+        //jika status bukan pending maka tidak bisa approve
+        if ($absence->status !== 'pending') {
+            throw new HttpException(
+                403,
+                'Only pending absence can be approved'
+            );
+        }
+
+        if (
+            $employee?->profile?->division_id
+            !==
+            $authUser?->profile?->division_id
+        ) {
+            throw new HttpException(
+                403,
+                'Cannot approve absence from different division'
+            );
         }
 
         $absence->update([
             'status' => $status,
             'approved_by' => $authUser->id,
+            'comment' => $comment,
         ]);
 
         return $absence->fresh();
@@ -172,7 +190,7 @@ class AbsenceService
             ->get();
     }
 
-    public function siteManagerApproveSpvAndStaffAbsence(int $absenceId, string $status): Absence
+    public function siteManagerApproveSpvAndStaffAbsence(int $absenceId, string $status, string $comment): Absence
     {
         $this->validateApprovalStatus($status);
 
@@ -181,6 +199,14 @@ class AbsenceService
         $this->ensurePending($absence);
 
         $employee = $absence->employee;
+
+        //jika status bukan pending maka tidak bisa approve
+        if ($absence->status !== 'pending') {
+            throw new HttpException(
+                403,
+                'Only pending absence can be approved'
+            );
+        }
 
         if (!$employee->hasAnyRole(['supervisor', 'staff'])) {
             throw new HttpException(
@@ -192,6 +218,7 @@ class AbsenceService
         $absence->update([
             'status' => $status,
             'approved_by' => $this->authUser()->id,
+            'comment' => $comment,
         ]);
 
         return $absence->fresh();
@@ -201,12 +228,19 @@ class AbsenceService
         string $division,
         string $date
     ): Collection {
-        return Absence::with('employee')
+
+        return Absence::query()
+
             ->whereDate('start', $date)
-            ->whereHas('employee', function ($q) use ($division) {
-                $q->where('division', $division);
-            })
+
+            ->whereHas(
+                'employee.profile.division',
+                fn($q) =>
+                $q->where('name', $division)
+            )
+
             ->latest('created_at')
+
             ->get();
     }
 

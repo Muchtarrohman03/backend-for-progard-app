@@ -17,24 +17,44 @@ class AbsenceExporter extends Exporter
         return [
             ExportColumn::make('id')
                 ->label('ID'),
-            ExportColumn::make('reason'),
-            ExportColumn::make('start'),
-            ExportColumn::make('end'),
-            ExportColumn::make('description'),
-            ExportColumn::make('employee_id'),
-            ExportColumn::make('evidence'),
-            ExportColumn::make('status'),
-            ExportColumn::make('created_at'),
-            ExportColumn::make('updated_at'),
+            ExportColumn::make('reason')
+                ->label('Alasan'),
+            ExportColumn::make('start')
+                ->label('Tanggal Mulai'),
+            ExportColumn::make('end')
+                ->label('Tanggal Selesai'),
+            ExportColumn::make('description')
+                ->label('Deskripsi'),
+            ExportColumn::make('employee.name')
+                ->label('Nama Karyawan'),
+            ExportColumn::make('evidence')
+                ->label('Bukti'),
+            ExportColumn::make('status')
+                ->label('Status'),
+            ExportColumn::make('image_url')
+                ->label('URL Gambar'),
+            ExportColumn::make('created_at')
+                ->label('Dibuat'),
+            ExportColumn::make('approver.name')
+                ->label('Disetujui oleh'),
+            ExportColumn::make('comment')
+                ->label('Komentar'),
+            ExportColumn::make('updated_at')
+                ->label('Diperbarui'),
         ];
     }
 
     public static function getCompletedNotificationBody(Export $export): string
     {
-        $body = 'Your absence export has completed and ' . Number::format($export->successful_rows) . ' ' . str('row')->plural($export->successful_rows) . ' exported.';
+        $successCount = Number::format($export->successful_rows);
+        $rowWord = str('baris')->plural($export->successful_rows);
+
+        $body = "Export izin selesai. {$successCount} {$rowWord} berhasil diekspor.";
 
         if ($failedRowsCount = $export->getFailedRowsCount()) {
-            $body .= ' ' . Number::format($failedRowsCount) . ' ' . str('row')->plural($failedRowsCount) . ' failed to export.';
+            $failedCount = Number::format($failedRowsCount);
+            $failedWord = str('baris')->plural($failedRowsCount);
+            $body .= " {$failedCount} {$rowWord} gagal diekspor, silakan coba lagi.";
         }
 
         return $body;

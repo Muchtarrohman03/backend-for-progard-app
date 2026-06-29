@@ -30,6 +30,11 @@ class Absence extends Model
         'evidence',
         'status',
         'approved_by',
+        'comment',
+    ];
+    protected $with = [
+        'employee.profile.division',
+        'approver.profile',
     ];
 
     protected static function booted()

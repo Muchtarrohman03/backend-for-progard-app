@@ -26,6 +26,7 @@ class AbsenceUpdateStatusRequest extends FormRequest
     {
         return [
             'status' => 'required|in:approved,rejected',
+            'comment' => 'required|string|max:255',
         ];
     }
 }

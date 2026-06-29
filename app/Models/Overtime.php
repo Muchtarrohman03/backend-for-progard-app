@@ -10,6 +10,11 @@ class Overtime extends Model
         'before_url',
         'after_url',
     ];
+    protected $with = [
+        'employee.profile.division',
+        'approver.profile',
+        'category',
+    ];
     public function getBeforeUrlAttribute()
     {
         return $this->before
@@ -34,6 +39,7 @@ class Overtime extends Model
         'before',
         'after',
         'approved_by',
+        'comment',
     ];
 
     protected static function booted(): void

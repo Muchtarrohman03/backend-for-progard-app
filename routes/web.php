@@ -4,7 +4,27 @@ use Illuminate\Support\Facades\Route;
 
 
 use Kreait\Firebase\Factory;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\TestMail;
 
+Route::get('/test-email', function () {
+
+    try {
+
+        Mail::to('amir123@email.com')
+            ->send(new TestMail());
+
+        return 'Success';
+    } catch (\Throwable $e) {
+
+        dd([
+            'class' => get_class($e),
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+        ]);
+    }
+});
 Route::get('/firebase-test', function () {
     try {
         $credentialsPath = config('firebase.projects.app.credentials');
@@ -35,11 +55,4 @@ Route::get('/firebase-test', function () {
 
 Route::get('/', function () {
     return redirect()->route('filament.admin.auth.login');
-});
-
-use App\Events\TestBroadcast;
-
-Route::get('/test-broadcast', function () {
-    broadcast(new TestBroadcast("Hello Reverb 🚀"));
-    return "Event sent!";
 });

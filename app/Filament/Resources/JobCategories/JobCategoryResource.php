@@ -35,12 +35,12 @@ class JobCategoryResource extends Resource
         return $schema
             ->components([
                 TextInput::make('name')
-                    ->label('Kategori')
+                    ->label('Nama Kategori')
                     ->required()
                     ->minLength(3)
                     ->maxLength(125),
                 Textarea::make('description')
-                    ->label('Kategori')
+                    ->label('Deskripsi Kategori Pekerjaan')
                     ->columnSpanFull()
                     ->minLength(10)
                     ->maxLength(125),
@@ -69,10 +69,10 @@ class JobCategoryResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('name')
-                    ->label('Kategori')
+                    ->label('Nama Kategori Pekerjaan')
                     ->searchable(),
                 TextColumn::make('description')
-                    ->label('Deskripsi')
+                    ->label('Deskripsi Kategori Pekerjaan')
                     ->searchable(),
                 TextColumn::make('created_at')
                     ->dateTime()

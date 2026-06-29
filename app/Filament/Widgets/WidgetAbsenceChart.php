@@ -10,51 +10,112 @@ use Filament\Widgets\ChartWidget;
 
 class WidgetAbsenceChart extends ChartWidget
 {
-    protected ?string $heading = 'Widget Absence Chart';
+    protected ?string $heading = 'Grafik Laporan Izin';
+    public ?string $filter = 'year';
 
 
     protected function getData(): array
     {
-        $color = '#fbbf24'; // warna kuning Tailwind warning
-        $colorTransparent = 'rgba(251, 191, 36, 0.3)';
-        $data = Trend::model(Absence::class)
-            ->between(
-                start: now()->subMonths(6),
-                end: now(),
-            )
-            ->perMonth()
-            ->count();
+        $filter = $this->filter ?? 'year';
+
+        $trend = Trend::model(Absence::class);
+
+        switch ($filter) {
+            case '7days':
+                $data = $trend
+                    ->between(
+                        start: now()->subDays(7),
+                        end: now(),
+                    )
+                    ->perDay()
+                    ->count();
+
+                $labels = $data->map(
+                    fn(TrendValue $value) =>
+                    Carbon::parse($value->date)
+                        ->locale('id')
+                        ->translatedFormat('d M')
+                );
+
+                break;
+
+            case '30days':
+                $data = $trend
+                    ->between(
+                        start: now()->subDays(30),
+                        end: now(),
+                    )
+                    ->perDay()
+                    ->count();
+
+                $labels = $data->map(
+                    fn(TrendValue $value) =>
+                    Carbon::parse($value->date)
+                        ->locale('id')
+                        ->translatedFormat('d M')
+                );
+
+                break;
+
+            case '90days':
+                $data = $trend
+                    ->between(
+                        start: now()->subDays(90),
+                        end: now(),
+                    )
+                    ->perDay()
+                    ->count();
+
+                $labels = $data->map(
+                    fn(TrendValue $value) =>
+                    Carbon::parse($value->date)
+                        ->locale('id')
+                        ->translatedFormat('d M')
+                );
+
+                break;
+
+            case 'year':
+                $data = $trend
+                    ->between(
+                        start: now()->startOfYear(),
+                        end: now(),
+                    )
+                    ->perMonth()
+                    ->count();
+
+                $labels = $data->map(
+                    fn(TrendValue $value) =>
+                    Carbon::parse($value->date)
+                        ->locale('id')
+                        ->translatedFormat('F')
+                );
+
+                break;
+        }
+
         return [
             'datasets' => [
                 [
-                    'label' => 'Absences',
+                    'label' => 'Jumlah Laporan Izin',
                     'data' => $data->map(fn(TrendValue $value) => $value->aggregate),
-                    'borderColor' => $color,
-                    'backgroundColor' => $colorTransparent,
-                    'pointBackgroundColor' => $color,
-                    'pointBorderColor' => $color,
-                    'pointHoverBackgroundColor' => $color,
-                    'pointHoverBorderColor' => $color,
-                    'tension' => 0.4,
+                    //ganti warna kuning
+                    'borderColor' => '#facc15',
+                    'backgroundColor' => 'rgba(250, 204, 21, 0.2)',
                     'fill' => true,
+                    'tension' => 0.4,
                 ],
             ],
-            'labels' => $data->map(function (TrendValue $value) {
-                // parse supaya jadi Carbon object → aman memanggil locale()/translatedFormat()
-                $date = Carbon::parse($value->date)->locale('id');
-
-                // 'F Y' = Bulan penuh + Tahun (contoh: "November 2025")
-                return $date->translatedFormat('F Y');
-            })->values()->toArray(),
+            'labels' => $labels->toArray(),
         ];
     }
     protected function getFilters(): ?array
     {
         return [
-            'today' => 'Hari ini',
-            'week' => 'Minggu ini',
-            'month' => 'Bulan ini',
-            'year' => 'Tahun ini',
+            '7days' => '7 Hari Terakhir',
+            '30days' => '30 Hari Terakhir',
+            '90days' => '90 Hari Terakhir',
+            'year' => 'Tahun Ini',
         ];
     }
 

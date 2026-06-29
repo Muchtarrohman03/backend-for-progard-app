@@ -5,12 +5,18 @@ namespace App\Listeners;
 use App\Events\AbsenceCreated;
 use App\Models\User;
 use App\Services\FirebaseService;
+use Illuminate\Contracts\Queue\ShouldQueue; // ← tambah ini
+use Illuminate\Queue\InteractsWithQueue;    // ← tambah ini
+use Illuminate\Support\Facades\Log;
 
-class SendAbsenceForApprovalNotification
+class SendAbsenceForApprovalNotification implements ShouldQueue
 {
-    /**
-     * Create the event listener.
-     */
+    use InteractsWithQueue;
+    public int $tries = 3;         // retry 3x jika gagal
+    public int $backoff = 5;       // tunggu 5 detik antar
+    public int $timeout = 30;      // timeout per attempt
+
+
     public function __construct(
         protected FirebaseService $firebaseService
     ) {}
@@ -24,31 +30,54 @@ class SendAbsenceForApprovalNotification
         $employee   = $absence->employee;
 
         if (!$employee) return;
-
-        // 🔥 Tentukan target role
+        // ✅ Guard 'api' karena semua role mobile pakai guard api
         $targetRole = match (true) {
-            $employee->hasRole('gardener') => 'supervisor',
-            ($employee->hasRole('supervisor') || $employee->hasRole('staff')) => 'site_manager',
+            $employee->hasRole('gardener', 'api') => 'supervisor',
+            ($employee->hasRole('supervisor', 'api') || $employee->hasRole('staff', 'api')) => 'site_manager',
             default => null,
         };
 
         if (!$targetRole) return;
 
-        // 🔥 Ambil user tujuan (1 per division)
-        $targetUser = User::role($targetRole)
-            ->when($targetRole === 'supervisor', function ($query) use ($employee) {
-                // ✅ hanya supervisor yang pakai division
-                $query->where('division', $employee->division);
-            })
-            ->whereNotNull('fcm_token')
-            ->first();
+        try {
+
+            $targetUser = User::role($targetRole, 'api')
+
+                ->when(
+                    $targetRole === 'supervisor',
+
+                    function ($query) use ($employee) {
+
+                        $query->whereHas(
+                            'profile',
+
+                            function ($q) use ($employee) {
+
+                                $q->where(
+                                    'division_id',
+                                    $employee->division_id
+                                );
+                            }
+                        );
+                    }
+                )
+
+                ->whereNotNull('fcm_token')
+
+                ->first();
+        } catch (\Spatie\Permission\Exceptions\RoleDoesNotExist $e) {
+
+            Log::warning(
+                "Role '{$targetRole}' tidak ditemukan",
+                ['guard' => 'api']
+            );
+
+            return;
+        }
 
         if (!$targetUser) return;
-
-        // ❌ Hindari kirim ke diri sendiri
         if ($targetUser->id === $employee->id) return;
 
-        // 🔥 Custom pesan berdasarkan role
         [$title, $body, $screen] = match ($targetRole) {
             'supervisor' => [
                 '1 Izin Baru Perlu Divalidasi',
@@ -72,5 +101,12 @@ class SendAbsenceForApprovalNotification
                 'screen' => $screen,
             ]
         );
+    }
+    public function failed(AbsenceCreated $event, \Throwable $exception): void
+    {
+        Log::error('Failed to send absence approval notification', [
+            'absence_id' => $event->absence->id,
+            'error' => $exception->getMessage(),
+        ]);
     }
 }

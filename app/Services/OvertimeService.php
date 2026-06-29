@@ -11,16 +11,24 @@ class OvertimeService
 
     public function getMyOvertimes()
     {
-        return Overtime::with(['employee', 'category'])
-            ->where('employee_id', Auth::id())
-            ->latest()
-            ->get();
+        return Overtime::with([
+            'employee.profile.division',
+            'approver.profile',
+            'category'
+        ]);
     }
 
     public function getById(int $id)
     {
         return Overtime::with(['employee', 'category'])
             ->findOrFail($id);
+    }
+    public function getByDate(string $date)
+    {
+        return Overtime::with(['employee', 'category'])
+            ->where('employee_id', Auth::id())
+            ->whereDate('created_at', $date)
+            ->get();
     }
 
     public function store($request)
@@ -36,7 +44,7 @@ class OvertimeService
             'end' => $request->end,
             'category_id' => $request->category_id,
             'employee_id' => Auth::id(),
-            'submitted_at' => now(),
+            // 'submitted_at' => now(),
             'description' => $request->description,
             'before' => $beforePath,
             'after' => $afterPath,
@@ -45,18 +53,17 @@ class OvertimeService
     }
     public function getByDivisionAndDate(string $division, string $date)
     {
-        return Overtime::with(['employee', 'category'])
-            ->whereRelation('employee', 'division', $division)
-            ->whereDate('submitted_at', $date)
-            ->latest('submitted_at')
-            ->get();
-    }
-    public function getByDate(string $date)
-    {
-        return Overtime::with(['employee', 'category'])
-            ->where('employee_id', Auth::id())
-            ->whereDate('submitted_at', $date)
-            ->latest()
+        return Overtime::query()
+
+            ->whereHas('employee.profile.division', function ($q) use ($division) {
+
+                $q->where('name', $division);
+            })
+
+            ->whereDate('created_at', $date)
+
+            ->latest('created_at')
+
             ->get();
     }
 
@@ -65,34 +72,42 @@ class OvertimeService
         $user = Auth::user();
 
         return Overtime::with(['employee', 'category'])
-            ->whereDate('submitted_at', today())
+            ->whereDate('created_at', today())
             ->whereHas('employee', function ($q) use ($user) {
-                $q->where('division', $user->division)
+                $q->whereHas('profile', function ($q) use ($user) {
+                    $q->where('division_id', $user->profile->division_id);
+                })
                     ->role('gardener');
             })
-            ->latest('submitted_at')
+            ->latest('created_at')
             ->get();
     }
 
     public function siteManagerSelectToday()
     {
         return Overtime::with(['employee', 'category'])
-            ->whereDate('submitted_at', today())
+            ->whereDate('created_at', today())
             ->whereHas(
                 'employee',
                 fn($q) =>
                 $q->role(['supervisor', 'staff'])
             )
-            ->latest('submitted_at')
+            ->latest('created_at')
             ->get();
     }
 
-    public function approvalSpv(int $id, string $status)
+    public function approvalSpv(int $id, string $status, ?string $comment)
     {
         $authUser = Auth::user();
 
         $overtime = Overtime::with('employee')
             ->findOrFail($id);
+        if ($overtime->status !== 'pending') {
+            throw new HttpException(
+                400,
+                'Only pending overtime can be approved'
+            );
+        }
 
         // cek apakah employee adalah gardener
         if (!$overtime->employee->hasRole('gardener')) {
@@ -103,7 +118,11 @@ class OvertimeService
         }
 
         // cek apakah division sama
-        if ($overtime->employee->division !== $authUser->division) {
+        if (
+            $overtime->employee?->profile?->division_id
+            !==
+            $authUser?->profile?->division_id
+        ) {
             throw new HttpException(
                 403,
                 'You cannot approve overtime from different division'
@@ -113,15 +132,24 @@ class OvertimeService
         $overtime->update([
             'status' => $status,
             'approved_by' => Auth::id(),
+            'comment' => $comment,
         ]);
 
         return $overtime->load(['employee', 'category']);
     }
-    public function approvalSiteManager(int $id, string $status)
+    public function approvalSiteManager(int $id, string $status, ?string $comment)
     {
 
         $overtime = Overtime::with('employee')
             ->findOrFail($id);
+
+        //jika status bukan pending maka tidak bisa approve
+        if ($overtime->status !== 'pending') {
+            throw new HttpException(
+                400,
+                'Only pending overtime can be approved'
+            );
+        }
 
         //jika role employee bukan supervisor maka tidak bisa approve
         if (!$overtime->employee->hasAnyRole(['supervisor', 'staff'])) {
@@ -134,6 +162,7 @@ class OvertimeService
         $overtime->update([
             'status' => $status,
             'approved_by' => Auth::id(),
+            'comment' => $comment,
         ]);
 
         return $overtime->load(['employee', 'category']);

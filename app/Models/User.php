@@ -3,6 +3,8 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\UserProfile;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\HasDatabaseNotifications;
@@ -26,11 +28,8 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
         'email',
         'password',
-        'division',
-        'gender',
         'fcm_token',
     ];
 
@@ -48,6 +47,16 @@ class User extends Authenticatable
         'remember_token',
     ];
 
+    protected $with = [
+        'profile.division'
+    ];
+
+    protected $appends = [
+        'name',
+        'gender',
+        'division',
+        'division_id',
+    ];
 
     /**
      * Get the attributes that should be cast.
@@ -88,5 +97,42 @@ class User extends Authenticatable
     public function positions()
     {
         return $this->hasMany(Position::class, 'employee_id');
+    }
+    public function profile()
+    {
+        return $this->hasOne(UserProfile::class);
+    }
+    public function getNameAttribute()
+    {
+        return $this->profile?->name;
+    }
+
+    public function getGenderAttribute()
+    {
+        return $this->profile?->gender;
+    }
+
+    public function getDivisionAttribute()
+    {
+        return $this->profile?->division?->name;
+    }
+    public function getDivisionIdAttribute()
+    {
+        return $this->profile?->division_id;
+    }
+    public function latestPosition()
+    {
+        return $this->hasOne(Position::class, 'employee_id')
+            ->latestOfMany();
+    }
+    public function passwordOtps()
+    {
+        return $this->hasMany(PasswordOtp::class);
+    }
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return $this->roles()
+            ->where('guard_name', 'web')
+            ->exists();
     }
 }

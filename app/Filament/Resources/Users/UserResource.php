@@ -2,10 +2,10 @@
 
 namespace App\Filament\Resources\Users;
 
-use Dom\Text;
 use UnitEnum;
 use BackedEnum;
 use App\Models\User;
+use App\Models\UserProfile;
 use Filament\Tables\Table;
 use Filament\Schemas\Schema;
 use Filament\Actions\EditAction;
@@ -19,13 +19,15 @@ use Filament\Forms\Components\Select;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\CheckboxList;
 use Filament\Infolists\Components\TextEntry;
 use App\Filament\Resources\Users\Pages\ManageUsers;
+use Filament\Schemas\Components\Section;
 
 class UserResource extends Resource
 {
     protected static ?string $model = User::class;
+
+    protected static ?string $title = 'Kelola Pengguna';
 
     protected static string | UnitEnum | null $navigationGroup = 'Manajemen Pengguna';
     protected static ?string $navigationLabel = 'Kelola Pengguna';
@@ -36,68 +38,76 @@ class UserResource extends Resource
         return $schema
             ->components([
 
-                TextInput::make('name')
-                    ->required(),
+                Section::make('Kredensial Akun')
+                    ->schema([
 
-                TextInput::make('email')
-                    ->email()
-                    ->autocomplete('off')
-                    ->required(),
+                        TextInput::make('email')
+                            ->email()
+                            ->required(),
 
-                TextInput::make('password')
-                    ->password()
-                    ->autocomplete('new-password')
-                    ->required()
-                    ->dehydrateStateUsing(fn($state) => bcrypt($state))
-                    ->visible(fn(string $operation) => $operation === 'create'),
+                        // TextInput::make('telephone')
+                        //     ->tel(),
 
-                // ⬇️ Tambahkan field assign role
-                Select::make('roles')
-                    ->label('Assign Roles')
-                    ->multiple()
-                    ->relationship('roles', 'name')
-                    ->preload()
-                    ->required(),
-                Select::make('division')
-                    ->options([
-                        'Management' => 'Management',
-                        'Sektor 1' => 'Sektor 1',
-                        'Sektor 2' => 'Sektor 2',
-                        'Sektor 3' => 'Sektor 3',
-                        'Sektor 4' => 'Sektor 4',
-                        'Sektor 5' => 'Sektor 5',
-                        'Sektor 6' => 'Sektor 6',
-                        'Sektor 7' => 'Sektor 7',
-                        'Sektor 8' => 'Sektor 8',
-                        'Sektor 9' => 'Sektor 9',
-                        'Sektor 10' => 'Sektor 10',
-                    ])
-                    ->required(),
-                Select::make('gender')
-                    ->options([
-                        'male' => 'Male',
-                        'female' => 'Female',
-                    ])
-                    ->required(),
+                        TextInput::make('password')
+                            ->password()
+                            ->default('123456')
+                            ->required(fn(string $operation) => $operation === 'create')
+                            ->dehydrateStateUsing(fn($state) => filled($state) ? bcrypt($state) : null)
+                            ->dehydrated(fn($state) => filled($state)),
+                    ]),
+
+                Section::make('Profil Pengguna')
+                    ->relationship('profile')
+                    ->schema([
+
+                        TextInput::make('name')
+                            ->label('Nama Pengguna')
+                            ->required(),
+
+                        Select::make('division_id')
+                            ->relationship('division', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->required(),
+
+                        Select::make('gender')
+                            ->label('Jenis Kelamin')
+                            ->options([
+                                'male' => 'Male',
+                                'female' => 'Female',
+                            ])
+                            ->required(),
+                    ]),
+
+                Section::make('Peran')
+                    ->schema([
+
+                        Select::make('peran')
+                            ->label('Peran Pengguna')
+                            ->relationship('roles', 'name')
+                            ->preload()
+                            ->required(),
+                    ]),
             ]);
     }
-
     public static function infolist(Schema $schema): Schema
     {
         return $schema
             ->components([
-                TextEntry::make('name'),
+
+                TextEntry::make('profile.name')
+                    ->label('Nama'),
+
                 TextEntry::make('email')
-                    ->label('Email address'),
+                    ->label('Email'),
                 TextEntry::make('roles.name')
                     ->label('Peran'),
-                TextEntry::make('division')
-                    ->label('Divisi')
-                    ->label('Division'),
-                TextEntry::make('gender')
-                    ->label('Jenis Kelamin')
-                    ->label('Gender'),
 
+                TextEntry::make('profile.division.name')
+                    ->label('Divisi'),
+
+                TextEntry::make('profile.gender')
+                    ->label('Gender'),
             ]);
     }
 
@@ -105,28 +115,31 @@ class UserResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('id')->label('ID'),
-                TextColumn::make('name')
+
+                TextColumn::make('id')
+                    ->label('ID'),
+
+                TextColumn::make('profile.name')
                     ->label('Nama')
                     ->searchable(),
+
                 TextColumn::make('email')
                     ->label('Alamat Email')
                     ->sortable()
                     ->searchable(),
+
                 TextColumn::make('roles.name')
-                    ->label('Peran')
                     ->label('Roles')
                     ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true)
                     ->wrap(),
-                TextColumn::make('division')
+
+                TextColumn::make('profile.division.name')
                     ->label('Divisi')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('gender')
-                    ->label('Jenis Kelamin')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->sortable(),
+
+                TextColumn::make('profile.gender')
+                    ->label('Gender')
+                    ->sortable(),
             ])
             ->recordActions([
                 ActionGroup::make([
@@ -147,5 +160,9 @@ class UserResource extends Resource
         return [
             'index' => ManageUsers::route('/'),
         ];
+    }
+    public static function mutateFormDataBeforeCreate(array $data): array
+    {
+        return $data;
     }
 }

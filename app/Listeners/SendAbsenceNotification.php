@@ -5,9 +5,17 @@ namespace App\Listeners;
 use App\Events\AbsenceStatusUpdated;
 use App\Services\FirebaseService;
 use Carbon\Carbon;
+use Illuminate\Contracts\Queue\ShouldQueue; // ← tambah ini
+use Illuminate\Queue\InteractsWithQueue;    // ← tambah ini
+use Illuminate\Support\Facades\Log;
 
-class SendabsenceNotification
+class SendAbsenceNotification implements ShouldQueue
 {
+    use InteractsWithQueue;
+    public int $tries = 3;         // retry 3x jika gagal
+    public int $backoff = 5;       // tunggu 5 detik antar retry
+    public int $timeout = 30;      // timeout per attempt
+
     public function __construct(
         protected FirebaseService $firebaseService
     ) {}
@@ -15,7 +23,14 @@ class SendabsenceNotification
     public function handle(AbsenceStatusUpdated $event): void
     {
         $absence = $event->absence;
-        $employee   = $absence->employee;
+
+        $absence->load([
+            'employee.roles',
+            'approver.roles',
+            'approver.profile',
+        ]);
+
+        $employee = $absence->employee;
 
         if (!$employee || !$employee->fcm_token) {
             return;
@@ -28,32 +43,50 @@ class SendabsenceNotification
         $approver = $absence->approver;
 
         $approverName = $approver?->name ?? 'System';
-        $approverRole = $approver?->getRoleNames()->first() ?? 'Unknown';
+
+        $approverRole = $approver
+            ?->getRoleNames()
+            ->first() ?? 'Admin';
 
         [$title, $body] = match ($absence->status) {
+
             'approved' => [
-                '✅ Izin Yang Kamu Buat Telah Disetujui',
+                '✅ Laporan Izin yang Kamu Buat Telah Disetujui',
+
                 "Diajukan pada: {$submittedAt}\nDisetujui oleh: {$approverName} ({$approverRole})",
             ],
+
             'rejected' => [
-                '❌ Izin Yang Kamu Buat Ditolak',
+                '❌ Laporan Izin yang Kamu Buat Ditolak',
+
                 "Diajukan pada: {$submittedAt}\nDitolak oleh: {$approverName} ({$approverRole})",
             ],
+
             default => [
-                'Status Pekerjaan',
-                "Status Izin kamu masih menunggu persetujuan",
+                'Status Izin',
+                "Status izin kamu telah diperbarui",
             ],
         };
 
         $this->firebaseService->sendNotification(
             fcmToken: $employee->fcm_token,
+
             title: $title,
+
             body: $body,
+
             data: [
                 'absence_id' => (string) $absence->id,
                 'status'        => $absence->status,
-                'screen'        => 'absence',
+                'screen'        => 'absence_submission',
             ]
         );
+    }
+    public function failed(AbsenceStatusUpdated $event, \Throwable $exception): void
+    {
+        Log::error('FCM status notification failed', [
+            'absence_id' => $event->absence->id,
+            'error' => $exception->getMessage(),
+        ]);
     }
 }

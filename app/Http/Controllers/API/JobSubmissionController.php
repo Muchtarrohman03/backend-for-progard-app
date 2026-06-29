@@ -63,7 +63,8 @@ class JobSubmissionController extends Controller
 
         $updated = $this->service->approve(
             $submission,
-            $request->status
+            $request->status,
+            $request->comment
         );
 
         return response()->json([
@@ -102,7 +103,8 @@ class JobSubmissionController extends Controller
 
         $updated = $this->service->siteManagerApproveSupervisorAndStaffSubmission(
             $id,
-            $request->status
+            $request->status,
+            $request->comment
         );
 
         return response()->json([
@@ -118,13 +120,11 @@ class JobSubmissionController extends Controller
             'data' => $data
         ]);
     }
-    public function submissionSummary()
+    public function submissionRanking()
     {
-        $data = $this->service->summary();
+        $data = $this->service->getGardenerRankingByDivision();
 
-        return response()->json([
-            'data' => $data
-        ]);
+        return response()->json($data);
     }
     public function destroy(JobSubmission $submission)
     {

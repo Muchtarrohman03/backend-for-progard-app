@@ -2,31 +2,34 @@
 
 namespace App\Filament\Resources\Absences;
 
-use UnitEnum;
-use BackedEnum;
-use App\Models\Absence;
-use Filament\Tables\Table;
-use Filament\Schemas\Schema;
-use Filament\Actions\EditAction;
-use Filament\Actions\ViewAction;
-use Filament\Resources\Resource;
-use Filament\Actions\ActionGroup;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\ExportAction;
-use Filament\Support\Icons\Heroicon;
-use Filament\Actions\BulkActionGroup;
-use Filament\Forms\Components\Select;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Forms\Components\Textarea;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Forms\Components\TextInput;
-use Filament\Tables\Columns\ImageColumn;
 use App\Filament\Exports\AbsenceExporter;
+use App\Filament\Resources\Absences\Pages\ManageAbsences;
+use App\Models\Absence;
+use BackedEnum;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ExportAction;
+use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
-use Filament\Infolists\Components\TextEntry;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\ImageEntry;
-use App\Filament\Resources\Absences\Pages\ManageAbsences;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\ImageColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Illuminate\Database\Eloquent\Builder;
+use Filament\Tables\Table;
+use UnitEnum;
 
 class AbsenceResource extends Resource
 {
@@ -34,7 +37,7 @@ class AbsenceResource extends Resource
 
     protected static string | UnitEnum | null $navigationGroup = 'Manajemen Pengajuan';
 
-    protected static ?string $navigationLabel = 'Pengajuan Izin';
+    protected static ?string $navigationLabel = 'Laporan Izin';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDays;
 
@@ -75,6 +78,8 @@ class AbsenceResource extends Resource
     {
         return $schema
             ->components([
+                TextEntry::make('employee.profile.name')
+                    ->label('Karyawan'),
                 TextEntry::make('reason')
                     ->badge(),
                 TextEntry::make('start')
@@ -84,21 +89,27 @@ class AbsenceResource extends Resource
                 TextEntry::make('description')
                     ->placeholder('-')
                     ->columnSpanFull(),
-                TextEntry::make('employee_id')
-                    ->numeric(),
                 ImageEntry::make('image_url')
                     ->disk('public')
-                    ->imageWidth(200)
+                    ->imageWidth(400)
                     ->imageHeight(300)
                     ->placeholder('-'),
                 TextEntry::make('status')
-                    ->badge(),
-                TextEntry::make('created_at')
-                    ->dateTime()
-                    ->placeholder('-'),
-                TextEntry::make('updated_at')
-                    ->dateTime()
-                    ->placeholder('-'),
+                    ->badge()
+                    ->icons([
+                        'heroicon-o-clock' => 'pending',
+                        'heroicon-o-check-circle' => 'approved',
+                        'heroicon-o-x-circle' => 'rejected',
+                    ])
+                    ->colors([
+                        'warning' => 'pending',
+                        'success' => 'approved',
+                        'danger' => 'rejected',
+                    ]),
+                TextEntry::make('comment')
+                    ->label('Komentar')
+                    ->placeholder('-')
+                    ->wrap(),
             ]);
     }
 
@@ -120,7 +131,7 @@ class AbsenceResource extends Resource
                     ->date()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: false),
-                TextColumn::make('employee.name')
+                TextColumn::make('employee.profile.name')
                     ->label('Karyawan')
                     ->sortable()
                     ->searchable()
@@ -156,9 +167,42 @@ class AbsenceResource extends Resource
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('comment')
+                    ->label('Komentar')
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->wrap(),
             ])
             ->filters([
-                //
+                SelectFilter::make('status')
+                    ->label('Filter Status')
+                    ->options([
+                        'pending' => 'Pending',
+                        'approved' => 'Approved',
+                        'rejected' => 'Rejected',
+                    ])
+                    ->multiple(),
+
+                Filter::make('created_at')
+                    ->label('Tanggal Dibuat')
+                    ->form([
+                        DatePicker::make('from')
+                            ->label('Dari tanggal'),
+                        DatePicker::make('until')
+                            ->label('Sampai tanggal'),
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        return $query
+                            ->when(
+                                $data['from'],
+                                fn(Builder $query, $date) =>
+                                $query->whereDate('created_at', '>=', $date),
+                            )
+                            ->when(
+                                $data['until'],
+                                fn(Builder $query, $date) =>
+                                $query->whereDate('created_at', '<=', $date),
+                            );
+                    }),
             ])
             ->recordActions([
                 ActionGroup::make([
@@ -174,8 +218,8 @@ class AbsenceResource extends Resource
             ])
             ->headerActions([
                 ExportAction::make()
-                    ->icon(Heroicon::ArrowDownTray)
-                    ->label('Unduh')
+                    ->icon(Heroicon::DocumentArrowUp)
+                    ->label('Ekspor')
                     ->exporter(AbsenceExporter::class)
                     ->color('primary')
                     ->maxRows(50000)

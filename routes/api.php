@@ -1,14 +1,13 @@
 <?php
 
 use App\Http\Controllers\Api\AbsenceController;
-use App\Http\Controllers\API\AuthenticationController;
-use App\Http\Controllers\api\DashboardController;
+use App\Http\Controllers\Api\AuthenticationController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\FcmTokenController;
 use App\Http\Controllers\Api\JobCategoryController;
 use App\Http\Controllers\Api\JobSubmissionController;
 use App\Http\Controllers\Api\OvertimeController;
 use App\Http\Controllers\Api\PositionController;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 
 

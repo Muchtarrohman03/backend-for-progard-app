@@ -34,7 +34,7 @@ class User extends Authenticatable
     ];
 
 
-    protected $guard_name = ['api', 'web'];
+    protected $guard_name = 'web';
 
 
     /**
